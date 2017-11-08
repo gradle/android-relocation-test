@@ -1,0 +1,96 @@
+apply plugin: 'base'
+
+def checkoutDir = file("checkout/santa-tracker")
+def originalDir = file("build/original")
+def relocatedDir = file("build/relocated")
+def cacheDir = file("build/cache-dir")
+def tasksToRun = ["assembleDebug"]
+
+def configureCaching(File dir) {
+	file("$dir/settings.gradle") << """
+		buildCache {
+			local(DirectoryBuildCache) {
+				directory = "$cacheDir.toURI()"
+			}
+		}
+	"""
+}
+
+task processResources(type: Copy) {
+	from "src/resources"
+	into "build/resources"
+
+	def originalSettings = file("$checkoutDir/settings.gradle")
+    inputs.property "cacheDir", cacheDir.absolutePath
+    inputs.file originalSettings
+
+    filter(org.apache.tools.ant.filters.ReplaceTokens, tokens: [
+        CACHE_DIR: cacheDir.toURI().toString(),
+        ORIGINAL_SETTINGS: originalSettings.text
+    ])
+}
+
+task copyOriginal(type: Copy) {
+	from checkoutDir
+	from processResources
+	into originalDir
+}
+
+task prepareOriginal(type: GradleBuild) {
+	dependsOn copyOriginal
+	dir = originalDir
+	tasks = ["clean"]
+	startParameter.searchUpwards = false
+}
+
+task copyRelocated(type: Copy) {
+	from checkoutDir
+	from processResources
+	into relocatedDir
+}
+
+task prepareRelocated(type: GradleBuild) {
+	dependsOn copyRelocated
+	dir = relocatedDir
+	tasks = ["clean"]
+	startParameter.searchUpwards = false
+}
+
+task cleanCache(type: Delete) {
+	delete cacheDir
+}
+
+task buildOriginal(type: Exec) {
+	dependsOn prepareOriginal
+	dependsOn cleanCache
+	workingDir = originalDir
+	executable = "./gradlew"
+	args = [*tasksToRun, "--no-search-upward", "--build-cache", "--scan", "-q"]
+	doFirst {
+		println "============================================"
+		println "Running original build"
+		println "============================================"
+	}
+}
+
+task buildRelocated(type: Exec) {
+	dependsOn buildOriginal
+	dependsOn prepareRelocated
+	workingDir = relocatedDir
+	executable = "./gradlew"
+	args = [*tasksToRun, "--no-search-upward", "--build-cache", "--scan", "-q"]
+	doFirst {
+		println "============================================"
+		println "Running relocated build"
+		println "============================================"
+	}
+}
+
+assemble {
+	dependsOn prepareOriginal
+	dependsOn prepareRelocated
+}
+
+check {
+	dependsOn buildRelocated
+}
