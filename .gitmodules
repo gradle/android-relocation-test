@@ -1,4 +1,4 @@
 [submodule "checkout/santa-tracker"]
 	path = checkout/santa-tracker
-	url = git@github.com:lptr/santa-tracker-android.git
+	url = https://github.com/lptr/santa-tracker-android
 	branch = lptr/relocatability-test-3.0.0
