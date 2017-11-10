@@ -14,23 +14,13 @@ def androidHome = file(System.getenv("ANDROID_HOME") ?: "${System.getProperty("u
 def checkoutDir = file("checkout/santa-tracker")
 def originalDir = file("build/original")
 def relocatedDir = file("build/relocated")
-def cacheDir = file("build/cache-dir")
 def defaultArgs = ["--no-search-upward", "--stacktrace"]
 
 task processFileResources(type: Copy) {
 	from "src/files/resources"
 	into "build/files/resources"
 
-	def originalSettings = file("$checkoutDir/settings.gradle")
-	def originalBuildFile = file("$checkoutDir/build.gradle")
-    inputs.property "cacheDir", cacheDir.absolutePath
-    inputs.file originalSettings
-    inputs.file originalBuildFile
-
     filter(org.apache.tools.ant.filters.ReplaceTokens, tokens: [
-        CACHE_DIR: cacheDir.toURI().toString(),
-        ORIGINAL_SETTINGS: originalSettings.text,
-        ORIGINAL_BUILD_FILE: originalBuildFile.text,
         ANDROID_HOME: androidHome.absolutePath
     ])
 }
@@ -61,12 +51,7 @@ task prepareRelocated(type: Exec) {
     args = ["clean", *defaultArgs]
 }
 
-task cleanCache(type: Delete) {
-	delete cacheDir
-}
-
 test {
-    dependsOn cleanCache
 	dependsOn prepareOriginal
 	dependsOn prepareRelocated
 

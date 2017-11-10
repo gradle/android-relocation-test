@@ -1,7 +1,0 @@
-@ORIGINAL_SETTINGS@
-
-buildCache {
-    local(DirectoryBuildCache) {
-        directory = "@CACHE_DIR@"
-    }
-}

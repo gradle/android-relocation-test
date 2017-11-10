@@ -13,7 +13,7 @@ class RelocationTest extends AbstractTest {
         def originalDir = new File(System.getProperty("original.dir"))
         def relocatedDir = new File(System.getProperty("relocated.dir"))
 
-        def initAddCacheFix = temporaryFolder.newFile("init.gradle") << """
+        def initScript = temporaryFolder.newFile("init.gradle") << """
             rootProject {
                 buildscript {
                     repositories {
@@ -32,16 +32,24 @@ class RelocationTest extends AbstractTest {
                     project.apply plugin: "org.gradle.android.cache-fix"
                 }
             }
+
+            settingsEvaluated { settings ->
+                settings.buildCache {
+                    local(DirectoryBuildCache) {
+                        directory = "${cacheDir.toURI()}"
+                    }
+                }
+            }
         """
 
-        def defaultArgs = ["--no-search-upward", "--build-cache", "--scan", "--stacktrace", "--init-script", initAddCacheFix.absolutePath]
+        def defaultArgs = ["--no-search-upward", "--build-cache", "--scan", "--stacktrace", "--init-script", initScript.absolutePath]
 
         expect:
         originalDir.directory
         relocatedDir.directory
 
         when:
-        def originalResult = withGradleVersion("4.3.1")
+        withGradleVersion("4.3.1")
             .withProjectDir(originalDir)
             .withArguments(*tasksToRun, *defaultArgs)
             .build()
