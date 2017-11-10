@@ -1,96 +1,80 @@
-apply plugin: 'base'
+apply plugin: 'groovy'
 
+repositories {
+    jcenter()
+}
+
+dependencies {
+    testCompile gradleTestKit()
+    testCompile "junit:junit:4.12"
+    testCompile "org.spockframework:spock-core:1.1-groovy-2.4@jar"
+}
+
+def androidHome = file(System.getenv("ANDROID_HOME") ?: "${System.getProperty("user.home")}/Library/Android/sdk")
 def checkoutDir = file("checkout/santa-tracker")
 def originalDir = file("build/original")
 def relocatedDir = file("build/relocated")
 def cacheDir = file("build/cache-dir")
-def tasksToRun = ["assembleDebug"]
+def defaultArgs = ["--no-search-upward", "--stacktrace"]
 
-def configureCaching(File dir) {
-	file("$dir/settings.gradle") << """
-		buildCache {
-			local(DirectoryBuildCache) {
-				directory = "$cacheDir.toURI()"
-			}
-		}
-	"""
-}
-
-task processResources(type: Copy) {
-	from "src/resources"
-	into "build/resources"
+task processFileResources(type: Copy) {
+	from "src/files/resources"
+	into "build/files/resources"
 
 	def originalSettings = file("$checkoutDir/settings.gradle")
+	def originalBuildFile = file("$checkoutDir/build.gradle")
     inputs.property "cacheDir", cacheDir.absolutePath
     inputs.file originalSettings
+    inputs.file originalBuildFile
 
     filter(org.apache.tools.ant.filters.ReplaceTokens, tokens: [
         CACHE_DIR: cacheDir.toURI().toString(),
-        ORIGINAL_SETTINGS: originalSettings.text
+        ORIGINAL_SETTINGS: originalSettings.text,
+        ORIGINAL_BUILD_FILE: originalBuildFile.text,
+        ANDROID_HOME: androidHome.absolutePath
     ])
 }
 
 task copyOriginal(type: Copy) {
 	from checkoutDir
-	from processResources
+	from processFileResources
 	into originalDir
 }
 
-task prepareOriginal(type: GradleBuild) {
+task prepareOriginal(type: Exec) {
 	dependsOn copyOriginal
-	dir = originalDir
-	tasks = ["clean"]
-	startParameter.searchUpwards = false
+    workingDir = originalDir
+    executable = "./gradlew"
+    args = ["clean", *defaultArgs]
 }
 
 task copyRelocated(type: Copy) {
 	from checkoutDir
-	from processResources
+	from processFileResources
 	into relocatedDir
 }
 
-task prepareRelocated(type: GradleBuild) {
+task prepareRelocated(type: Exec) {
 	dependsOn copyRelocated
-	dir = relocatedDir
-	tasks = ["clean"]
-	startParameter.searchUpwards = false
+    workingDir = relocatedDir
+    executable = "./gradlew"
+    args = ["clean", *defaultArgs]
 }
 
 task cleanCache(type: Delete) {
 	delete cacheDir
 }
 
-task buildOriginal(type: Exec) {
+test {
+    dependsOn cleanCache
 	dependsOn prepareOriginal
-	dependsOn cleanCache
-	workingDir = originalDir
-	executable = "./gradlew"
-	args = [*tasksToRun, "--no-search-upward", "--build-cache", "--scan", "-q"]
-	doFirst {
-		println "============================================"
-		println "Running original build"
-		println "============================================"
-	}
-}
-
-task buildRelocated(type: Exec) {
-	dependsOn buildOriginal
 	dependsOn prepareRelocated
-	workingDir = relocatedDir
-	executable = "./gradlew"
-	args = [*tasksToRun, "--no-search-upward", "--build-cache", "--scan", "-q"]
-	doFirst {
-		println "============================================"
-		println "Running relocated build"
-		println "============================================"
-	}
+
+	systemProperty "original.dir", originalDir.absolutePath
+	systemProperty "relocated.dir", relocatedDir.absolutePath
 }
 
 assemble {
 	dependsOn prepareOriginal
 	dependsOn prepareRelocated
-}
-
-check {
-	dependsOn buildRelocated
 }
