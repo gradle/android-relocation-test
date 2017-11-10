@@ -72,6 +72,10 @@ test {
 
 	systemProperty "original.dir", originalDir.absolutePath
 	systemProperty "relocated.dir", relocatedDir.absolutePath
+
+    if (System.getenv("TRAVIS") == "true") {
+        testLogging.showStandardStreams = true
+    }
 }
 
 assemble {
