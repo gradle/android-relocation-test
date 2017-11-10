@@ -9,10 +9,32 @@ class RelocationTest extends AbstractTest {
 
     def "santa-tracker can be built relocatably"() {
         def tasksToRun = ["assembleDebug"]
-        def defaultArgs = ["--no-search-upward", "--build-cache", "--scan", "--stacktrace"]
 
         def originalDir = new File(System.getProperty("original.dir"))
         def relocatedDir = new File(System.getProperty("relocated.dir"))
+
+        def initAddCacheFix = temporaryFolder.newFile("init.gradle") << """
+            rootProject {
+                buildscript {
+                    repositories {
+                        maven {
+                            url "https://plugins.gradle.org/m2/"
+                        }
+                    }
+                    dependencies {
+                        classpath 'gradle.plugin.org.gradle.android:android-cache-fix-gradle-plugin:0.1.8'
+                    }
+                }
+            }
+
+            allprojects { project ->
+                project.plugins.matching({ it.class.name == "com.android.build.gradle.api.AndroidBasePlugin" }).all {
+                    project.apply plugin: "org.gradle.android.cache-fix"
+                }
+            }
+        """
+
+        def defaultArgs = ["--no-search-upward", "--build-cache", "--scan", "--stacktrace", "--init-script", initAddCacheFix.absolutePath]
 
         expect:
         originalDir.directory
