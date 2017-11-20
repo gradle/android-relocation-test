@@ -1,5 +1,8 @@
 package org.gradle.android.test
 
+import org.gradle.testkit.runner.BuildResult
+import org.gradle.testkit.runner.TaskOutcome
+
 import static org.gradle.testkit.runner.TaskOutcome.FROM_CACHE
 import static org.gradle.testkit.runner.TaskOutcome.NO_SOURCE
 import static org.gradle.testkit.runner.TaskOutcome.SUCCESS
@@ -9,6 +12,8 @@ class RelocationTest extends AbstractTest {
 
     def "santa-tracker can be built relocatably"() {
         def tasksToRun = ["assembleDebug"]
+        def androidPluginVersion = "3.1.0-alpha04"
+        def gradleVersion = "4.4-20171031235950+0000"
 
         def originalDir = new File(System.getProperty("original.dir"))
         def relocatedDir = new File(System.getProperty("relocated.dir"))
@@ -22,7 +27,8 @@ class RelocationTest extends AbstractTest {
                         }
                     }
                     dependencies {
-                        classpath 'gradle.plugin.org.gradle.android:android-cache-fix-gradle-plugin:0.1.8'
+                        classpath 'gradle.plugin.org.gradle.android:android-cache-fix-gradle-plugin:0.1.11'
+                        classpath ('com.android.tools.build:gradle:${androidPluginVersion}') { force = true }
                     }
                 }
             }
@@ -42,14 +48,19 @@ class RelocationTest extends AbstractTest {
             }
         """
 
-        def defaultArgs = ["--no-search-upward", "--build-cache", "--scan", "--stacktrace", "--init-script", initScript.absolutePath]
+        def defaultArgs = [
+            "--no-search-upward",
+            "--build-cache",
+            "--init-script", initScript.absolutePath,
+            "-Dorg.gradle.android.cache-fix.ignoreVersionCheck=true",
+        ]
 
         expect:
         originalDir.directory
         relocatedDir.directory
 
         when:
-        withGradleVersion("4.3.1")
+        withGradleVersion(gradleVersion)
             .withProjectDir(originalDir)
             .withArguments(*tasksToRun, *defaultArgs)
             .build()
@@ -57,20 +68,44 @@ class RelocationTest extends AbstractTest {
         noExceptionThrown()
 
         when:
-        def relocatedResult = withGradleVersion("4.3.1")
+        def relocatedResult = withGradleVersion(gradleVersion)
             .withProjectDir(relocatedDir)
             .withArguments(*tasksToRun, *defaultArgs)
             .build()
         then:
-        verifyAll {
-            relocatedResult.tasks(FROM_CACHE).size() == 164
-            expectedResults.each { task, outcome ->
-                assert relocatedResult.task(task).outcome == outcome
+        expectedResults.verify(relocatedResult)
+    }
+
+    static class ExpectedResults {
+        private final Map<String, TaskOutcome> outcomes
+
+        ExpectedResults(Map<String, TaskOutcome> outcomes) {
+            this.outcomes = outcomes
+        }
+
+        boolean verify(BuildResult result) {
+            println "Expecting ${outcomes.values().count(FROM_CACHE)} tasks out of ${outcomes.size()} to be cached"
+
+            def outcomesWithMatchingTasks = outcomes.findAll { result.task(it.key) }
+            def hasMatchingTasks = outcomesWithMatchingTasks.size() == outcomes.size() && outcomesWithMatchingTasks.size() == result.tasks.size()
+            if (!hasMatchingTasks) {
+                println "> Tasks missing:    " + (outcomes.keySet() - outcomesWithMatchingTasks.keySet())
+                println "> Tasks in surplus: " + (result.tasks*.path - outcomesWithMatchingTasks.keySet())
             }
+
+            boolean allOutcomesMatched = true
+            outcomesWithMatchingTasks.each { taskName, expectedOutcome ->
+                def taskOutcome = result.task(taskName)?.outcome
+                if (taskOutcome != expectedOutcome) {
+                    println "> Task '$taskName' was $taskOutcome but should have been $expectedOutcome"
+                    allOutcomesMatched = false
+                }
+            }
+            return hasMatchingTasks && allOutcomesMatched
         }
     }
 
-    def expectedResults = [
+    def expectedResults = new ExpectedResults(
         ':common:assembleDebug': SUCCESS,
         ':common:bundleDebug': SUCCESS,
         ':common:checkDebugManifest': FROM_CACHE,
@@ -85,21 +120,21 @@ class RelocationTest extends AbstractTest {
         ':common:generateDebugBuildConfig': FROM_CACHE,
         ':common:generateDebugResources': UP_TO_DATE,
         ':common:generateDebugResValues': FROM_CACHE,
-        ':common:generateDebugSources': SUCCESS,
+        ':common:generateDebugRFile': FROM_CACHE,
+        ':common:generateDebugSources': UP_TO_DATE,
         ':common:javaPreCompileDebug': FROM_CACHE,
-        ':common:mergeDebugAssets': FROM_CACHE,
-        ':common:mergeDebugConsumerProguardFiles': SUCCESS,
+        ':common:mergeDebugConsumerProguardFiles': UP_TO_DATE,
         ':common:mergeDebugJniLibFolders': FROM_CACHE,
         ':common:mergeDebugShaders': FROM_CACHE,
+        ':common:packageDebugAssets': FROM_CACHE,
         ':common:packageDebugRenderscript': NO_SOURCE,
         ':common:packageDebugResources': FROM_CACHE,
         ':common:platformAttrExtractor': FROM_CACHE,
         ':common:preBuild': UP_TO_DATE,
         ':common:preDebugBuild': UP_TO_DATE,
-        ':common:prepareLintJar': SUCCESS,
+        ':common:prepareLintJar': UP_TO_DATE,
         ':common:processDebugJavaRes': NO_SOURCE,
         ':common:processDebugManifest': FROM_CACHE,
-        ':common:processDebugResources': FROM_CACHE,
         ':common:transformClassesAndResourcesWithPrepareIntermediateJarsForDebug': SUCCESS,
         ':common:transformClassesAndResourcesWithSyncLibJarsForDebug': SUCCESS,
         ':common:transformNativeLibsWithIntermediateJniLibsForDebug': SUCCESS,
@@ -120,21 +155,21 @@ class RelocationTest extends AbstractTest {
         ':dasherdancer:generateDebugBuildConfig': FROM_CACHE,
         ':dasherdancer:generateDebugResources': UP_TO_DATE,
         ':dasherdancer:generateDebugResValues': FROM_CACHE,
-        ':dasherdancer:generateDebugSources': SUCCESS,
+        ':dasherdancer:generateDebugRFile': FROM_CACHE,
+        ':dasherdancer:generateDebugSources': UP_TO_DATE,
         ':dasherdancer:javaPreCompileDebug': FROM_CACHE,
-        ':dasherdancer:mergeDebugAssets': FROM_CACHE,
-        ':dasherdancer:mergeDebugConsumerProguardFiles': SUCCESS,
+        ':dasherdancer:mergeDebugConsumerProguardFiles': UP_TO_DATE,
         ':dasherdancer:mergeDebugJniLibFolders': FROM_CACHE,
         ':dasherdancer:mergeDebugShaders': FROM_CACHE,
+        ':dasherdancer:packageDebugAssets': FROM_CACHE,
         ':dasherdancer:packageDebugRenderscript': NO_SOURCE,
         ':dasherdancer:packageDebugResources': FROM_CACHE,
         ':dasherdancer:platformAttrExtractor': FROM_CACHE,
         ':dasherdancer:preBuild': UP_TO_DATE,
         ':dasherdancer:preDebugBuild': UP_TO_DATE,
-        ':dasherdancer:prepareLintJar': SUCCESS,
+        ':dasherdancer:prepareLintJar': UP_TO_DATE,
         ':dasherdancer:processDebugJavaRes': NO_SOURCE,
         ':dasherdancer:processDebugManifest': FROM_CACHE,
-        ':dasherdancer:processDebugResources': FROM_CACHE,
         ':dasherdancer:transformClassesAndResourcesWithPrepareIntermediateJarsForDebug': SUCCESS,
         ':dasherdancer:transformClassesAndResourcesWithSyncLibJarsForDebug': SUCCESS,
         ':dasherdancer:transformNativeLibsWithIntermediateJniLibsForDebug': SUCCESS,
@@ -155,21 +190,21 @@ class RelocationTest extends AbstractTest {
         ':doodles:generateDebugBuildConfig': FROM_CACHE,
         ':doodles:generateDebugResources': UP_TO_DATE,
         ':doodles:generateDebugResValues': FROM_CACHE,
-        ':doodles:generateDebugSources': SUCCESS,
+        ':doodles:generateDebugRFile': FROM_CACHE,
+        ':doodles:generateDebugSources': UP_TO_DATE,
         ':doodles:javaPreCompileDebug': FROM_CACHE,
-        ':doodles:mergeDebugAssets': FROM_CACHE,
-        ':doodles:mergeDebugConsumerProguardFiles': SUCCESS,
+        ':doodles:mergeDebugConsumerProguardFiles': UP_TO_DATE,
         ':doodles:mergeDebugJniLibFolders': FROM_CACHE,
         ':doodles:mergeDebugShaders': FROM_CACHE,
+        ':doodles:packageDebugAssets': FROM_CACHE,
         ':doodles:packageDebugRenderscript': NO_SOURCE,
         ':doodles:packageDebugResources': FROM_CACHE,
         ':doodles:platformAttrExtractor': FROM_CACHE,
         ':doodles:preBuild': UP_TO_DATE,
         ':doodles:preDebugBuild': UP_TO_DATE,
-        ':doodles:prepareLintJar': SUCCESS,
+        ':doodles:prepareLintJar': UP_TO_DATE,
         ':doodles:processDebugJavaRes': NO_SOURCE,
         ':doodles:processDebugManifest': FROM_CACHE,
-        ':doodles:processDebugResources': FROM_CACHE,
         ':doodles:transformClassesAndResourcesWithPrepareIntermediateJarsForDebug': SUCCESS,
         ':doodles:transformClassesAndResourcesWithSyncLibJarsForDebug': SUCCESS,
         ':doodles:transformNativeLibsWithIntermediateJniLibsForDebug': SUCCESS,
@@ -190,21 +225,21 @@ class RelocationTest extends AbstractTest {
         ':presentquest:generateDebugBuildConfig': FROM_CACHE,
         ':presentquest:generateDebugResources': UP_TO_DATE,
         ':presentquest:generateDebugResValues': FROM_CACHE,
-        ':presentquest:generateDebugSources': SUCCESS,
+        ':presentquest:generateDebugRFile': FROM_CACHE,
+        ':presentquest:generateDebugSources': UP_TO_DATE,
         ':presentquest:javaPreCompileDebug': FROM_CACHE,
-        ':presentquest:mergeDebugAssets': FROM_CACHE,
-        ':presentquest:mergeDebugConsumerProguardFiles': SUCCESS,
+        ':presentquest:mergeDebugConsumerProguardFiles': UP_TO_DATE,
         ':presentquest:mergeDebugJniLibFolders': FROM_CACHE,
         ':presentquest:mergeDebugShaders': FROM_CACHE,
+        ':presentquest:packageDebugAssets': FROM_CACHE,
         ':presentquest:packageDebugRenderscript': NO_SOURCE,
         ':presentquest:packageDebugResources': FROM_CACHE,
         ':presentquest:platformAttrExtractor': FROM_CACHE,
         ':presentquest:preBuild': UP_TO_DATE,
         ':presentquest:preDebugBuild': UP_TO_DATE,
-        ':presentquest:prepareLintJar': SUCCESS,
+        ':presentquest:prepareLintJar': UP_TO_DATE,
         ':presentquest:processDebugJavaRes': NO_SOURCE,
         ':presentquest:processDebugManifest': FROM_CACHE,
-        ':presentquest:processDebugResources': FROM_CACHE,
         ':presentquest:transformClassesAndResourcesWithPrepareIntermediateJarsForDebug': SUCCESS,
         ':presentquest:transformClassesAndResourcesWithSyncLibJarsForDebug': SUCCESS,
         ':presentquest:transformNativeLibsWithIntermediateJniLibsForDebug': SUCCESS,
@@ -225,21 +260,21 @@ class RelocationTest extends AbstractTest {
         ':rocketsleigh:generateDebugBuildConfig': FROM_CACHE,
         ':rocketsleigh:generateDebugResources': UP_TO_DATE,
         ':rocketsleigh:generateDebugResValues': FROM_CACHE,
-        ':rocketsleigh:generateDebugSources': SUCCESS,
+        ':rocketsleigh:generateDebugRFile': FROM_CACHE,
+        ':rocketsleigh:generateDebugSources': UP_TO_DATE,
         ':rocketsleigh:javaPreCompileDebug': FROM_CACHE,
-        ':rocketsleigh:mergeDebugAssets': FROM_CACHE,
-        ':rocketsleigh:mergeDebugConsumerProguardFiles': SUCCESS,
+        ':rocketsleigh:mergeDebugConsumerProguardFiles': UP_TO_DATE,
         ':rocketsleigh:mergeDebugJniLibFolders': FROM_CACHE,
         ':rocketsleigh:mergeDebugShaders': FROM_CACHE,
+        ':rocketsleigh:packageDebugAssets': FROM_CACHE,
         ':rocketsleigh:packageDebugRenderscript': NO_SOURCE,
         ':rocketsleigh:packageDebugResources': FROM_CACHE,
         ':rocketsleigh:platformAttrExtractor': FROM_CACHE,
         ':rocketsleigh:preBuild': UP_TO_DATE,
         ':rocketsleigh:preDebugBuild': UP_TO_DATE,
-        ':rocketsleigh:prepareLintJar': SUCCESS,
+        ':rocketsleigh:prepareLintJar': UP_TO_DATE,
         ':rocketsleigh:processDebugJavaRes': NO_SOURCE,
         ':rocketsleigh:processDebugManifest': FROM_CACHE,
-        ':rocketsleigh:processDebugResources': FROM_CACHE,
         ':rocketsleigh:transformClassesAndResourcesWithPrepareIntermediateJarsForDebug': SUCCESS,
         ':rocketsleigh:transformClassesAndResourcesWithSyncLibJarsForDebug': SUCCESS,
         ':rocketsleigh:transformNativeLibsWithIntermediateJniLibsForDebug': SUCCESS,
@@ -269,12 +304,12 @@ class RelocationTest extends AbstractTest {
         ':santa-tracker:generateDevelopmentDebugBuildConfig': FROM_CACHE,
         ':santa-tracker:generateDevelopmentDebugResources': UP_TO_DATE,
         ':santa-tracker:generateDevelopmentDebugResValues': FROM_CACHE,
-        ':santa-tracker:generateDevelopmentDebugSources': SUCCESS,
+        ':santa-tracker:generateDevelopmentDebugSources': UP_TO_DATE,
         ':santa-tracker:generateProductionDebugAssets': UP_TO_DATE,
         ':santa-tracker:generateProductionDebugBuildConfig': FROM_CACHE,
         ':santa-tracker:generateProductionDebugResources': UP_TO_DATE,
         ':santa-tracker:generateProductionDebugResValues': FROM_CACHE,
-        ':santa-tracker:generateProductionDebugSources': SUCCESS,
+        ':santa-tracker:generateProductionDebugSources': UP_TO_DATE,
         ':santa-tracker:javaPreCompileDevelopmentDebug': FROM_CACHE,
         ':santa-tracker:javaPreCompileProductionDebug': FROM_CACHE,
         ':santa-tracker:mergeDevelopmentDebugAssets': FROM_CACHE,
@@ -289,7 +324,7 @@ class RelocationTest extends AbstractTest {
         ':santa-tracker:packageProductionDebug': SUCCESS,
         ':santa-tracker:preBuild': UP_TO_DATE,
         ':santa-tracker:preDevelopmentDebugBuild': FROM_CACHE,
-        ':santa-tracker:prepareLintJar': SUCCESS,
+        ':santa-tracker:prepareLintJar': UP_TO_DATE,
         ':santa-tracker:preProductionDebugBuild': FROM_CACHE,
         ':santa-tracker:processDevelopmentDebugGoogleServices': SUCCESS,
         ':santa-tracker:processDevelopmentDebugJavaRes': NO_SOURCE,
@@ -303,7 +338,7 @@ class RelocationTest extends AbstractTest {
         ':santa-tracker:splitsDiscoveryTaskProductionDebug': FROM_CACHE,
         ':santa-tracker:transformClassesWithDexBuilderForDevelopmentDebug': SUCCESS,
         ':santa-tracker:transformClassesWithDexBuilderForProductionDebug': SUCCESS,
-        ':santa-tracker:transformClassesWithMultidexlistForProductionDebug': FROM_CACHE,
+        ':santa-tracker:transformClassesWithMultidexlistForProductionDebug': SUCCESS,
         ':santa-tracker:transformDexArchiveWithDexMergerForDevelopmentDebug': SUCCESS,
         ':santa-tracker:transformDexArchiveWithDexMergerForProductionDebug': SUCCESS,
         ':santa-tracker:transformDexArchiveWithExternalLibsDexMergerForDevelopmentDebug': SUCCESS,
@@ -327,21 +362,21 @@ class RelocationTest extends AbstractTest {
         ':snowdown:generateDebugBuildConfig': FROM_CACHE,
         ':snowdown:generateDebugResources': UP_TO_DATE,
         ':snowdown:generateDebugResValues': FROM_CACHE,
-        ':snowdown:generateDebugSources': SUCCESS,
+        ':snowdown:generateDebugRFile': FROM_CACHE,
+        ':snowdown:generateDebugSources': UP_TO_DATE,
         ':snowdown:javaPreCompileDebug': FROM_CACHE,
-        ':snowdown:mergeDebugAssets': FROM_CACHE,
-        ':snowdown:mergeDebugConsumerProguardFiles': SUCCESS,
+        ':snowdown:mergeDebugConsumerProguardFiles': UP_TO_DATE,
         ':snowdown:mergeDebugJniLibFolders': FROM_CACHE,
         ':snowdown:mergeDebugShaders': FROM_CACHE,
+        ':snowdown:packageDebugAssets': FROM_CACHE,
         ':snowdown:packageDebugRenderscript': NO_SOURCE,
         ':snowdown:packageDebugResources': FROM_CACHE,
         ':snowdown:platformAttrExtractor': FROM_CACHE,
         ':snowdown:preBuild': UP_TO_DATE,
         ':snowdown:preDebugBuild': UP_TO_DATE,
-        ':snowdown:prepareLintJar': SUCCESS,
+        ':snowdown:prepareLintJar': UP_TO_DATE,
         ':snowdown:processDebugJavaRes': NO_SOURCE,
         ':snowdown:processDebugManifest': FROM_CACHE,
-        ':snowdown:processDebugResources': FROM_CACHE,
         ':snowdown:transformClassesAndResourcesWithPrepareIntermediateJarsForDebug': SUCCESS,
         ':snowdown:transformClassesAndResourcesWithSyncLibJarsForDebug': SUCCESS,
         ':snowdown:transformNativeLibsWithIntermediateJniLibsForDebug': SUCCESS,
@@ -362,21 +397,21 @@ class RelocationTest extends AbstractTest {
         ':village:generateDebugBuildConfig': FROM_CACHE,
         ':village:generateDebugResources': UP_TO_DATE,
         ':village:generateDebugResValues': FROM_CACHE,
-        ':village:generateDebugSources': SUCCESS,
+        ':village:generateDebugRFile': FROM_CACHE,
+        ':village:generateDebugSources': UP_TO_DATE,
         ':village:javaPreCompileDebug': FROM_CACHE,
-        ':village:mergeDebugAssets': FROM_CACHE,
-        ':village:mergeDebugConsumerProguardFiles': SUCCESS,
+        ':village:mergeDebugConsumerProguardFiles': UP_TO_DATE,
         ':village:mergeDebugJniLibFolders': FROM_CACHE,
         ':village:mergeDebugShaders': FROM_CACHE,
+        ':village:packageDebugAssets': FROM_CACHE,
         ':village:packageDebugRenderscript': NO_SOURCE,
         ':village:packageDebugResources': FROM_CACHE,
         ':village:platformAttrExtractor': FROM_CACHE,
         ':village:preBuild': UP_TO_DATE,
         ':village:preDebugBuild': UP_TO_DATE,
-        ':village:prepareLintJar': SUCCESS,
+        ':village:prepareLintJar': UP_TO_DATE,
         ':village:processDebugJavaRes': NO_SOURCE,
         ':village:processDebugManifest': FROM_CACHE,
-        ':village:processDebugResources': FROM_CACHE,
         ':village:transformClassesAndResourcesWithPrepareIntermediateJarsForDebug': SUCCESS,
         ':village:transformClassesAndResourcesWithSyncLibJarsForDebug': SUCCESS,
         ':village:transformNativeLibsWithIntermediateJniLibsForDebug': SUCCESS,
@@ -396,7 +431,7 @@ class RelocationTest extends AbstractTest {
         ':wearable:generateDebugBuildConfig': FROM_CACHE,
         ':wearable:generateDebugResources': UP_TO_DATE,
         ':wearable:generateDebugResValues': FROM_CACHE,
-        ':wearable:generateDebugSources': SUCCESS,
+        ':wearable:generateDebugSources': UP_TO_DATE,
         ':wearable:javaPreCompileDebug': FROM_CACHE,
         ':wearable:mergeDebugAssets': FROM_CACHE,
         ':wearable:mergeDebugJniLibFolders': FROM_CACHE,
@@ -405,7 +440,7 @@ class RelocationTest extends AbstractTest {
         ':wearable:packageDebug': SUCCESS,
         ':wearable:preBuild': UP_TO_DATE,
         ':wearable:preDebugBuild': FROM_CACHE,
-        ':wearable:prepareLintJar': SUCCESS,
+        ':wearable:prepareLintJar': UP_TO_DATE,
         ':wearable:processDebugJavaRes': NO_SOURCE,
         ':wearable:processDebugManifest': FROM_CACHE,
         ':wearable:processDebugResources': FROM_CACHE,
@@ -416,5 +451,5 @@ class RelocationTest extends AbstractTest {
         ':wearable:transformNativeLibsWithMergeJniLibsForDebug': SUCCESS,
         ':wearable:transformResourcesWithMergeJavaResForDebug': SUCCESS,
         ':wearable:validateSigningDebug': SUCCESS,
-    ]
+    )
 }
