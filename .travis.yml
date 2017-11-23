@@ -14,12 +14,4 @@ cache:
 
 android:
   components:
-    - tools
-    - platform-tools
-    - tools
-
-    # The BuildTools version used by your project
-    - build-tools-26.0.2
-
-    # The SDK version used to compile your project
-    - android-26
+    - build-tools-27.0.1
