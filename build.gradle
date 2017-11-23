@@ -36,6 +36,10 @@ task prepareOriginal(type: Exec) {
     workingDir = originalDir
     executable = "./gradlew"
     args = ["clean", *defaultArgs]
+
+    doLast {
+        delete "$originalDir/.gradle"
+    }
 }
 
 task copyRelocated(type: Copy) {
@@ -49,6 +53,10 @@ task prepareRelocated(type: Exec) {
     workingDir = relocatedDir
     executable = "./gradlew"
     args = ["clean", *defaultArgs]
+
+    doLast {
+        delete "$relocatedDir/.gradle"
+    }
 }
 
 test {
@@ -57,6 +65,9 @@ test {
 
 	systemProperty "original.dir", originalDir.absolutePath
 	systemProperty "relocated.dir", relocatedDir.absolutePath
+
+    inputs.dir originalDir withPropertyName "original.dir"
+    inputs.dir relocatedDir withPropertyName "relocated.dir"
 
     if (System.getenv("TRAVIS") == "true") {
         testLogging.showStandardStreams = true
