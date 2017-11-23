@@ -29,7 +29,10 @@ class RelocationTest extends Specification {
 
     def "santa-tracker can be built relocatably"() {
         def tasksToRun = ["assembleDebug"]
-        def androidPluginVersion = System.getProperty(ANDROID_VERSION_PROPERTY, DEFAULT_ANDROID_VERSION)
+        def androidPluginVersion = System.getProperty(ANDROID_VERSION_PROPERTY)
+        if (!androidPluginVersion) {
+            androidPluginVersion = DEFAULT_ANDROID_VERSION
+        }
 
         println "> Using Android plugin ${androidPluginVersion}"
 
