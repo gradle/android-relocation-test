@@ -1,19 +1,37 @@
 package org.gradle.android.test
 
 import org.gradle.testkit.runner.BuildResult
+import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
+import org.junit.Rule
+import org.junit.rules.TemporaryFolder
+import spock.lang.Specification
 
 import static org.gradle.testkit.runner.TaskOutcome.FROM_CACHE
 import static org.gradle.testkit.runner.TaskOutcome.NO_SOURCE
 import static org.gradle.testkit.runner.TaskOutcome.SUCCESS
 import static org.gradle.testkit.runner.TaskOutcome.UP_TO_DATE
 
-class RelocationTest extends AbstractTest {
+class RelocationTest extends Specification {
+
+    static final String GRADLE_INSTALLATION_PROPERTY = "org.gradle.android.test.gradle-installation"
+    static final String ANDROID_VERSION_PROPERTY = "org.gradle.android.test.android-version"
+
+    def DEFAULT_GRADLE_VERSION = "4.4-rc-1"
+    def DEFAULT_ANDROID_VERSION = "3.1.0-alpha04"
+
+    @Rule TemporaryFolder temporaryFolder
+    File cacheDir
+
+    def setup() {
+        cacheDir = temporaryFolder.newFolder()
+    }
 
     def "santa-tracker can be built relocatably"() {
         def tasksToRun = ["assembleDebug"]
-        def androidPluginVersion = "3.1.0-alpha04"
-        def gradleVersion = "4.4-20171031235950+0000"
+        def androidPluginVersion = System.getProperty(ANDROID_VERSION_PROPERTY, DEFAULT_ANDROID_VERSION)
+
+        println "> Using Android plugin ${androidPluginVersion}"
 
         def originalDir = new File(System.getProperty("original.dir"))
         def relocatedDir = new File(System.getProperty("relocated.dir"))
@@ -67,7 +85,7 @@ class RelocationTest extends AbstractTest {
         relocatedDir.directory
 
         when:
-        withGradleVersion(gradleVersion)
+        createGradleRunner()
             .withProjectDir(originalDir)
             .withArguments(*tasksToRun, *defaultArgs)
             .build()
@@ -75,7 +93,7 @@ class RelocationTest extends AbstractTest {
         noExceptionThrown()
 
         when:
-        def relocatedResult = withGradleVersion(gradleVersion)
+        def relocatedResult = createGradleRunner()
             .withProjectDir(relocatedDir)
             .withArguments(*tasksToRun, *defaultArgs)
             .build()
@@ -459,4 +477,22 @@ class RelocationTest extends AbstractTest {
         ':wearable:transformResourcesWithMergeJavaResForDebug': SUCCESS,
         ':wearable:validateSigningDebug': SUCCESS,
     )
+
+    def createGradleRunner() {
+        def gradleRunner = GradleRunner.create()
+
+        def gradleInstallation = System.getProperty(GRADLE_INSTALLATION_PROPERTY)
+        if (gradleInstallation) {
+            gradleRunner.withGradleInstallation(new File(gradleInstallation))
+            println "> Running with Gradle installation in $gradleInstallation"
+        } else {
+            def gradleVersion = DEFAULT_GRADLE_VERSION
+            gradleRunner.withGradleVersion(gradleVersion)
+            println "> Running with Gradle version $gradleVersion"
+        }
+
+        gradleRunner.forwardOutput()
+
+        return gradleRunner
+    }
 }
