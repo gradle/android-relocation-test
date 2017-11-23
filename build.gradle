@@ -17,8 +17,8 @@ def relocatedDir = file("build/relocated")
 def defaultArgs = ["--no-search-upward", "--stacktrace"]
 
 task processFileResources(type: Copy) {
-	from "src/files/resources"
-	into "build/files/resources"
+    from "src/files/resources"
+    into "build/files/resources"
 
     filter(org.apache.tools.ant.filters.ReplaceTokens, tokens: [
         ANDROID_HOME: androidHome.absolutePath
@@ -26,13 +26,13 @@ task processFileResources(type: Copy) {
 }
 
 task copyOriginal(type: Copy) {
-	from checkoutDir
-	from processFileResources
-	into originalDir
+    from checkoutDir
+    from processFileResources
+    into originalDir
 }
 
 task prepareOriginal(type: Exec) {
-	dependsOn copyOriginal
+    dependsOn copyOriginal
     workingDir = originalDir
     executable = "./gradlew"
     args = ["clean", *defaultArgs]
@@ -43,13 +43,13 @@ task prepareOriginal(type: Exec) {
 }
 
 task copyRelocated(type: Copy) {
-	from checkoutDir
-	from processFileResources
-	into relocatedDir
+    from checkoutDir
+    from processFileResources
+    into relocatedDir
 }
 
 task prepareRelocated(type: Exec) {
-	dependsOn copyRelocated
+    dependsOn copyRelocated
     workingDir = relocatedDir
     executable = "./gradlew"
     args = ["clean", *defaultArgs]
@@ -60,11 +60,13 @@ task prepareRelocated(type: Exec) {
 }
 
 test {
-	dependsOn prepareOriginal
-	dependsOn prepareRelocated
+    dependsOn prepareOriginal
+    dependsOn prepareRelocated
 
-	systemProperty "original.dir", originalDir.absolutePath
-	systemProperty "relocated.dir", relocatedDir.absolutePath
+    systemProperty "original.dir", originalDir.absolutePath
+    systemProperty "relocated.dir", relocatedDir.absolutePath
+    systemProperty "org.gradle.android.test.gradle-installation", System.getProperty("org.gradle.android.test.gradle-installation")
+    systemProperty "org.gradle.android.test.android-version", System.getProperty("org.gradle.android.test.android-version")
 
     inputs.dir originalDir withPropertyName "original.dir"
     inputs.dir relocatedDir withPropertyName "relocated.dir"
@@ -75,6 +77,6 @@ test {
 }
 
 assemble {
-	dependsOn prepareOriginal
-	dependsOn prepareRelocated
+    dependsOn prepareOriginal
+    dependsOn prepareRelocated
 }
