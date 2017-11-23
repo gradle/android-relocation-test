@@ -69,7 +69,7 @@ test {
     inputs.dir originalDir withPropertyName "original.dir"
     inputs.dir relocatedDir withPropertyName "relocated.dir"
 
-    if (System.getenv("TRAVIS") == "true") {
+    if (System.getenv("TRAVIS") == "true" || Boolean.getBoolean("org.gradle.android.test.show-output")) {
         testLogging.showStandardStreams = true
     }
 }
