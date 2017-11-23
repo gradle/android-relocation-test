@@ -19,7 +19,7 @@ class RelocationTest extends AbstractTest {
         def relocatedDir = new File(System.getProperty("relocated.dir"))
 
         def initScript = temporaryFolder.newFile("init.gradle") << """
-            rootProject {
+            rootProject { root ->
                 buildscript {
                     repositories {
                         maven {
@@ -29,6 +29,12 @@ class RelocationTest extends AbstractTest {
                     dependencies {
                         classpath 'gradle.plugin.org.gradle.android:android-cache-fix-gradle-plugin:0.1.11'
                         classpath ('com.android.tools.build:gradle:${androidPluginVersion}') { force = true }
+                    }
+                }
+
+                plugins.matching({ it.class.name == "com.gradle.scan.plugin.BuildScanPlugin" }).all {
+                    root.buildScan {
+                        server = "https://e.grdev.net"
                     }
                 }
             }
@@ -51,6 +57,7 @@ class RelocationTest extends AbstractTest {
         def defaultArgs = [
             "--no-search-upward",
             "--build-cache",
+            "--scan",
             "--init-script", initScript.absolutePath,
             "-Dorg.gradle.android.cache-fix.ignoreVersionCheck=true",
         ]
