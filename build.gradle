@@ -14,7 +14,6 @@ def androidHome = file(System.getenv("ANDROID_HOME") ?: "${System.getProperty("u
 def checkoutDir = file("checkout/santa-tracker")
 def originalDir = file("build/original")
 def relocatedDir = file("build/relocated")
-def defaultArgs = ["--no-search-upward", "--stacktrace"]
 
 task processFileResources(type: Copy) {
     from "src/files/resources"
@@ -31,37 +30,15 @@ task copyOriginal(type: Copy) {
     into originalDir
 }
 
-task prepareOriginal(type: Exec) {
-    dependsOn copyOriginal
-    workingDir = originalDir
-    executable = "./gradlew"
-    args = ["clean", *defaultArgs]
-
-    doLast {
-        delete "$originalDir/.gradle"
-    }
-}
-
 task copyRelocated(type: Copy) {
     from checkoutDir
     from processFileResources
     into relocatedDir
 }
 
-task prepareRelocated(type: Exec) {
-    dependsOn copyRelocated
-    workingDir = relocatedDir
-    executable = "./gradlew"
-    args = ["clean", *defaultArgs]
-
-    doLast {
-        delete "$relocatedDir/.gradle"
-    }
-}
-
 test {
-    dependsOn prepareOriginal
-    dependsOn prepareRelocated
+    dependsOn copyOriginal
+    dependsOn copyRelocated
 
     systemProperty "original.dir", originalDir.absolutePath
     systemProperty "relocated.dir", relocatedDir.absolutePath
@@ -77,6 +54,6 @@ test {
 }
 
 assemble {
-    dependsOn prepareOriginal
-    dependsOn prepareRelocated
+    dependsOn copyOriginal
+    dependsOn copyRelocated
 }

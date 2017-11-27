@@ -17,8 +17,8 @@ class RelocationTest extends Specification {
     static final String GRADLE_INSTALLATION_PROPERTY = "org.gradle.android.test.gradle-installation"
     static final String ANDROID_VERSION_PROPERTY = "org.gradle.android.test.android-version"
 
-    def DEFAULT_GRADLE_VERSION = "4.4-rc-1"
-    def DEFAULT_ANDROID_VERSION = "3.1.0-alpha04"
+    static final String DEFAULT_GRADLE_VERSION = "4.4-rc-1"
+    static final String DEFAULT_ANDROID_VERSION = "3.1.0-alpha04"
 
     @Rule TemporaryFolder temporaryFolder
     File cacheDir
@@ -48,7 +48,6 @@ class RelocationTest extends Specification {
                         }
                     }
                     dependencies {
-                        classpath 'gradle.plugin.org.gradle.android:android-cache-fix-gradle-plugin:0.1.11'
                         classpath ('com.android.tools.build:gradle:${androidPluginVersion}') { force = true }
                     }
                 }
@@ -57,12 +56,6 @@ class RelocationTest extends Specification {
                     root.buildScan {
                         server = "https://e.grdev.net"
                     }
-                }
-            }
-
-            allprojects { project ->
-                project.plugins.matching({ it.class.name == "com.android.build.gradle.api.AndroidBasePlugin" }).all {
-                    project.apply plugin: "org.gradle.android.cache-fix"
                 }
             }
 
@@ -76,16 +69,14 @@ class RelocationTest extends Specification {
         """
 
         def defaultArgs = [
-            "--no-search-upward",
             "--build-cache",
             "--scan",
             "--init-script", initScript.absolutePath,
             "-Dorg.gradle.android.cache-fix.ignoreVersionCheck=true",
         ]
 
-        expect:
-        originalDir.directory
-        relocatedDir.directory
+        cleanCheckout(originalDir, defaultArgs)
+        cleanCheckout(relocatedDir, defaultArgs)
 
         when:
         createGradleRunner()
@@ -102,6 +93,14 @@ class RelocationTest extends Specification {
             .build()
         then:
         expectedResults.verify(relocatedResult)
+    }
+
+    private void cleanCheckout(File dir, List<String> defaultArgs) {
+        createGradleRunner()
+            .withProjectDir(dir)
+            .withArguments("clean", *defaultArgs, "--no-build-cache")
+            .build()
+        new File(dir, ".gradle").deleteDir()
     }
 
     static class ExpectedResults {
@@ -481,7 +480,7 @@ class RelocationTest extends Specification {
         ':wearable:validateSigningDebug': SUCCESS,
     )
 
-    def createGradleRunner() {
+    GradleRunner createGradleRunner() {
         def gradleRunner = GradleRunner.create()
 
         def gradleInstallation = System.getProperty(GRADLE_INSTALLATION_PROPERTY)
