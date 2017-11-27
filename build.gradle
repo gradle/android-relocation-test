@@ -24,13 +24,22 @@ task processFileResources(type: Copy) {
     ])
 }
 
+task cleanCheckout(type: Exec) {
+    workingDir = checkoutDir
+    commandLine = ["git", "clean", "-fdx"]
+}
+
 task copyOriginal(type: Copy) {
+    dependsOn cleanCheckout
+
     from checkoutDir
     from processFileResources
     into originalDir
 }
 
 task copyRelocated(type: Copy) {
+    dependsOn cleanCheckout
+
     from checkoutDir
     from processFileResources
     into relocatedDir
