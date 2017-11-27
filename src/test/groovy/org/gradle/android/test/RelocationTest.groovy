@@ -21,7 +21,7 @@ class RelocationTest extends Specification {
     static final String ANDROID_CACHE_FIX_VERSION_PROPERTY = "org.gradle.android.test.android-cache-fix-version"
     static final String SCAN_URL_PROPERTY = "org.gradle.android.test.scan-url"
 
-    static final String DEFAULT_GRADLE_VERSION = "4.4-rc-1"
+    static final String DEFAULT_GRADLE_VERSION = "4.4-rc-3"
     static final String DEFAULT_ANDROID_VERSION = "3.1.0-alpha04"
     static final String DEFAULT_ANDROID_CACHE_FIX_VERSION = "0.1.11"
 
