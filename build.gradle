@@ -5,6 +5,7 @@ repositories {
 }
 
 dependencies {
+    testCompile "com.google.guava:guava:23.5-jre"
     testCompile gradleTestKit()
     testCompile "junit:junit:4.12"
     testCompile "org.spockframework:spock-core:1.1-groovy-2.4@jar"
@@ -53,6 +54,7 @@ test {
     systemProperty "relocated.dir", relocatedDir.absolutePath
     systemProperty "org.gradle.android.test.gradle-installation", System.getProperty("org.gradle.android.test.gradle-installation")
     systemProperty "org.gradle.android.test.android-version", System.getProperty("org.gradle.android.test.android-version")
+    systemProperty "org.gradle.android.test.android-cache-fix-version", System.getProperty("org.gradle.android.test.android-cache-fix-version")
 
     inputs.dir originalDir withPropertyName "original.dir"
     inputs.dir relocatedDir withPropertyName "relocated.dir"

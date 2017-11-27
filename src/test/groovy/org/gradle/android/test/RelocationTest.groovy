@@ -1,11 +1,13 @@
 package org.gradle.android.test
 
+import com.google.common.collect.ImmutableMap
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 import spock.lang.Specification
+import spock.lang.Unroll
 
 import static org.gradle.testkit.runner.TaskOutcome.FROM_CACHE
 import static org.gradle.testkit.runner.TaskOutcome.NO_SOURCE
@@ -16,28 +18,58 @@ class RelocationTest extends Specification {
 
     static final String GRADLE_INSTALLATION_PROPERTY = "org.gradle.android.test.gradle-installation"
     static final String ANDROID_VERSION_PROPERTY = "org.gradle.android.test.android-version"
+    static final String ANDROID_CACHE_FIX_VERSION_PROPERTY = "org.gradle.android.test.android-cache-fix-version"
 
     static final String DEFAULT_GRADLE_VERSION = "4.4-rc-1"
     static final String DEFAULT_ANDROID_VERSION = "3.1.0-alpha04"
+    static final String DEFAULT_ANDROID_CACHE_FIX_VERSION = "0.1.11"
 
     @Rule TemporaryFolder temporaryFolder
     File cacheDir
+    String androidPluginVersion
+    String androidCacheFixVersion
 
     def setup() {
         cacheDir = temporaryFolder.newFolder()
-    }
 
-    def "santa-tracker can be built relocatably"() {
-        def tasksToRun = ["assembleDebug"]
-        def androidPluginVersion = System.getProperty(ANDROID_VERSION_PROPERTY)
+        androidPluginVersion = System.getProperty(ANDROID_VERSION_PROPERTY)
         if (!androidPluginVersion) {
             androidPluginVersion = DEFAULT_ANDROID_VERSION
         }
 
+        androidCacheFixVersion = System.getProperty(ANDROID_CACHE_FIX_VERSION_PROPERTY)
+        if (!androidCacheFixVersion) {
+            androidCacheFixVersion = DEFAULT_ANDROID_CACHE_FIX_VERSION
+        }
+    }
+
+    @Unroll
+    def "santa-tracker can be built relocatably #cacheFixApplied"() {
+        def tasksToRun = ["assembleDebug"]
+
         println "> Using Android plugin ${androidPluginVersion}"
+        println "> Cache directory: $cacheDir (files: ${cacheDir.listFiles().length})"
 
         def originalDir = new File(System.getProperty("original.dir"))
         def relocatedDir = new File(System.getProperty("relocated.dir"))
+
+        def expectedResults = expectedResults(applyCacheFix)
+
+        def applyCacheFixPluginIfNecessary = applyCacheFix ? """
+            rootProject {
+                buildscript {
+                    dependencies {
+                        classpath 'gradle.plugin.org.gradle.android:android-cache-fix-gradle-plugin:$androidCacheFixVersion'
+                    }
+                }
+            }
+
+            allprojects { project ->
+                project.plugins.matching({ it.class.name == "com.android.build.gradle.api.AndroidBasePlugin" }).all {
+                    project.apply plugin: 'org.gradle.android.cache-fix'
+                }
+            }
+        """ : ""
 
         def initScript = temporaryFolder.newFile("init.gradle") << """
             rootProject { root ->
@@ -58,6 +90,8 @@ class RelocationTest extends Specification {
                     }
                 }
             }
+
+            $applyCacheFixPluginIfNecessary
 
             settingsEvaluated { settings ->
                 settings.buildCache {
@@ -93,6 +127,10 @@ class RelocationTest extends Specification {
             .build()
         then:
         expectedResults.verify(relocatedResult)
+
+        where:
+        applyCacheFix << [false, true]
+        cacheFixApplied = applyCacheFix ? "with cache fix" : "without cache fix"
     }
 
     private void cleanCheckout(File dir, List<String> defaultArgs) {
@@ -132,353 +170,355 @@ class RelocationTest extends Specification {
         }
     }
 
-    def expectedResults = new ExpectedResults(
-        ':common:assembleDebug': SUCCESS,
-        ':common:bundleDebug': SUCCESS,
-        ':common:checkDebugManifest': FROM_CACHE,
-        ':common:compileDebugAidl': FROM_CACHE,
-        ':common:compileDebugJavaWithJavac': FROM_CACHE,
-        ':common:compileDebugNdk': NO_SOURCE,
-        ':common:compileDebugRenderscript': FROM_CACHE,
-        ':common:compileDebugShaders': FROM_CACHE,
-        ':common:compileDebugSources': UP_TO_DATE,
-        ':common:extractDebugAnnotations': FROM_CACHE,
-        ':common:generateDebugAssets': UP_TO_DATE,
-        ':common:generateDebugBuildConfig': FROM_CACHE,
-        ':common:generateDebugResources': UP_TO_DATE,
-        ':common:generateDebugResValues': FROM_CACHE,
-        ':common:generateDebugRFile': FROM_CACHE,
-        ':common:generateDebugSources': SUCCESS,
-        ':common:javaPreCompileDebug': FROM_CACHE,
-        ':common:mergeDebugConsumerProguardFiles': SUCCESS,
-        ':common:mergeDebugJniLibFolders': FROM_CACHE,
-        ':common:mergeDebugShaders': FROM_CACHE,
-        ':common:packageDebugAssets': FROM_CACHE,
-        ':common:packageDebugRenderscript': NO_SOURCE,
-        ':common:packageDebugResources': FROM_CACHE,
-        ':common:platformAttrExtractor': FROM_CACHE,
-        ':common:preBuild': UP_TO_DATE,
-        ':common:preDebugBuild': UP_TO_DATE,
-        ':common:prepareLintJar': SUCCESS,
-        ':common:processDebugJavaRes': NO_SOURCE,
-        ':common:processDebugManifest': FROM_CACHE,
-        ':common:transformClassesAndResourcesWithPrepareIntermediateJarsForDebug': SUCCESS,
-        ':common:transformClassesAndResourcesWithSyncLibJarsForDebug': SUCCESS,
-        ':common:transformNativeLibsWithIntermediateJniLibsForDebug': SUCCESS,
-        ':common:transformNativeLibsWithMergeJniLibsForDebug': SUCCESS,
-        ':common:transformNativeLibsWithSyncJniLibsForDebug': SUCCESS,
-        ':common:transformResourcesWithMergeJavaResForDebug': SUCCESS,
-        ':dasherdancer:assembleDebug': SUCCESS,
-        ':dasherdancer:bundleDebug': SUCCESS,
-        ':dasherdancer:checkDebugManifest': FROM_CACHE,
-        ':dasherdancer:compileDebugAidl': FROM_CACHE,
-        ':dasherdancer:compileDebugJavaWithJavac': FROM_CACHE,
-        ':dasherdancer:compileDebugNdk': NO_SOURCE,
-        ':dasherdancer:compileDebugRenderscript': FROM_CACHE,
-        ':dasherdancer:compileDebugShaders': FROM_CACHE,
-        ':dasherdancer:compileDebugSources': UP_TO_DATE,
-        ':dasherdancer:extractDebugAnnotations': FROM_CACHE,
-        ':dasherdancer:generateDebugAssets': UP_TO_DATE,
-        ':dasherdancer:generateDebugBuildConfig': FROM_CACHE,
-        ':dasherdancer:generateDebugResources': UP_TO_DATE,
-        ':dasherdancer:generateDebugResValues': FROM_CACHE,
-        ':dasherdancer:generateDebugRFile': FROM_CACHE,
-        ':dasherdancer:generateDebugSources': SUCCESS,
-        ':dasherdancer:javaPreCompileDebug': FROM_CACHE,
-        ':dasherdancer:mergeDebugConsumerProguardFiles': SUCCESS,
-        ':dasherdancer:mergeDebugJniLibFolders': FROM_CACHE,
-        ':dasherdancer:mergeDebugShaders': FROM_CACHE,
-        ':dasherdancer:packageDebugAssets': FROM_CACHE,
-        ':dasherdancer:packageDebugRenderscript': NO_SOURCE,
-        ':dasherdancer:packageDebugResources': FROM_CACHE,
-        ':dasherdancer:platformAttrExtractor': FROM_CACHE,
-        ':dasherdancer:preBuild': UP_TO_DATE,
-        ':dasherdancer:preDebugBuild': UP_TO_DATE,
-        ':dasherdancer:prepareLintJar': SUCCESS,
-        ':dasherdancer:processDebugJavaRes': NO_SOURCE,
-        ':dasherdancer:processDebugManifest': FROM_CACHE,
-        ':dasherdancer:transformClassesAndResourcesWithPrepareIntermediateJarsForDebug': SUCCESS,
-        ':dasherdancer:transformClassesAndResourcesWithSyncLibJarsForDebug': SUCCESS,
-        ':dasherdancer:transformNativeLibsWithIntermediateJniLibsForDebug': SUCCESS,
-        ':dasherdancer:transformNativeLibsWithMergeJniLibsForDebug': SUCCESS,
-        ':dasherdancer:transformNativeLibsWithSyncJniLibsForDebug': SUCCESS,
-        ':dasherdancer:transformResourcesWithMergeJavaResForDebug': SUCCESS,
-        ':doodles:assembleDebug': SUCCESS,
-        ':doodles:bundleDebug': SUCCESS,
-        ':doodles:checkDebugManifest': FROM_CACHE,
-        ':doodles:compileDebugAidl': FROM_CACHE,
-        ':doodles:compileDebugJavaWithJavac': FROM_CACHE,
-        ':doodles:compileDebugNdk': NO_SOURCE,
-        ':doodles:compileDebugRenderscript': FROM_CACHE,
-        ':doodles:compileDebugShaders': FROM_CACHE,
-        ':doodles:compileDebugSources': UP_TO_DATE,
-        ':doodles:extractDebugAnnotations': FROM_CACHE,
-        ':doodles:generateDebugAssets': UP_TO_DATE,
-        ':doodles:generateDebugBuildConfig': FROM_CACHE,
-        ':doodles:generateDebugResources': UP_TO_DATE,
-        ':doodles:generateDebugResValues': FROM_CACHE,
-        ':doodles:generateDebugRFile': FROM_CACHE,
-        ':doodles:generateDebugSources': SUCCESS,
-        ':doodles:javaPreCompileDebug': FROM_CACHE,
-        ':doodles:mergeDebugConsumerProguardFiles': SUCCESS,
-        ':doodles:mergeDebugJniLibFolders': FROM_CACHE,
-        ':doodles:mergeDebugShaders': FROM_CACHE,
-        ':doodles:packageDebugAssets': FROM_CACHE,
-        ':doodles:packageDebugRenderscript': NO_SOURCE,
-        ':doodles:packageDebugResources': FROM_CACHE,
-        ':doodles:platformAttrExtractor': FROM_CACHE,
-        ':doodles:preBuild': UP_TO_DATE,
-        ':doodles:preDebugBuild': UP_TO_DATE,
-        ':doodles:prepareLintJar': SUCCESS,
-        ':doodles:processDebugJavaRes': NO_SOURCE,
-        ':doodles:processDebugManifest': FROM_CACHE,
-        ':doodles:transformClassesAndResourcesWithPrepareIntermediateJarsForDebug': SUCCESS,
-        ':doodles:transformClassesAndResourcesWithSyncLibJarsForDebug': SUCCESS,
-        ':doodles:transformNativeLibsWithIntermediateJniLibsForDebug': SUCCESS,
-        ':doodles:transformNativeLibsWithMergeJniLibsForDebug': SUCCESS,
-        ':doodles:transformNativeLibsWithSyncJniLibsForDebug': SUCCESS,
-        ':doodles:transformResourcesWithMergeJavaResForDebug': SUCCESS,
-        ':presentquest:assembleDebug': SUCCESS,
-        ':presentquest:bundleDebug': SUCCESS,
-        ':presentquest:checkDebugManifest': FROM_CACHE,
-        ':presentquest:compileDebugAidl': FROM_CACHE,
-        ':presentquest:compileDebugJavaWithJavac': FROM_CACHE,
-        ':presentquest:compileDebugNdk': NO_SOURCE,
-        ':presentquest:compileDebugRenderscript': FROM_CACHE,
-        ':presentquest:compileDebugShaders': FROM_CACHE,
-        ':presentquest:compileDebugSources': UP_TO_DATE,
-        ':presentquest:extractDebugAnnotations': FROM_CACHE,
-        ':presentquest:generateDebugAssets': UP_TO_DATE,
-        ':presentquest:generateDebugBuildConfig': FROM_CACHE,
-        ':presentquest:generateDebugResources': UP_TO_DATE,
-        ':presentquest:generateDebugResValues': FROM_CACHE,
-        ':presentquest:generateDebugRFile': FROM_CACHE,
-        ':presentquest:generateDebugSources': SUCCESS,
-        ':presentquest:javaPreCompileDebug': FROM_CACHE,
-        ':presentquest:mergeDebugConsumerProguardFiles': SUCCESS,
-        ':presentquest:mergeDebugJniLibFolders': FROM_CACHE,
-        ':presentquest:mergeDebugShaders': FROM_CACHE,
-        ':presentquest:packageDebugAssets': FROM_CACHE,
-        ':presentquest:packageDebugRenderscript': NO_SOURCE,
-        ':presentquest:packageDebugResources': FROM_CACHE,
-        ':presentquest:platformAttrExtractor': FROM_CACHE,
-        ':presentquest:preBuild': UP_TO_DATE,
-        ':presentquest:preDebugBuild': UP_TO_DATE,
-        ':presentquest:prepareLintJar': SUCCESS,
-        ':presentquest:processDebugJavaRes': NO_SOURCE,
-        ':presentquest:processDebugManifest': FROM_CACHE,
-        ':presentquest:transformClassesAndResourcesWithPrepareIntermediateJarsForDebug': SUCCESS,
-        ':presentquest:transformClassesAndResourcesWithSyncLibJarsForDebug': SUCCESS,
-        ':presentquest:transformNativeLibsWithIntermediateJniLibsForDebug': SUCCESS,
-        ':presentquest:transformNativeLibsWithMergeJniLibsForDebug': SUCCESS,
-        ':presentquest:transformNativeLibsWithSyncJniLibsForDebug': SUCCESS,
-        ':presentquest:transformResourcesWithMergeJavaResForDebug': SUCCESS,
-        ':rocketsleigh:assembleDebug': SUCCESS,
-        ':rocketsleigh:bundleDebug': SUCCESS,
-        ':rocketsleigh:checkDebugManifest': FROM_CACHE,
-        ':rocketsleigh:compileDebugAidl': FROM_CACHE,
-        ':rocketsleigh:compileDebugJavaWithJavac': FROM_CACHE,
-        ':rocketsleigh:compileDebugNdk': NO_SOURCE,
-        ':rocketsleigh:compileDebugRenderscript': FROM_CACHE,
-        ':rocketsleigh:compileDebugShaders': FROM_CACHE,
-        ':rocketsleigh:compileDebugSources': UP_TO_DATE,
-        ':rocketsleigh:extractDebugAnnotations': FROM_CACHE,
-        ':rocketsleigh:generateDebugAssets': UP_TO_DATE,
-        ':rocketsleigh:generateDebugBuildConfig': FROM_CACHE,
-        ':rocketsleigh:generateDebugResources': UP_TO_DATE,
-        ':rocketsleigh:generateDebugResValues': FROM_CACHE,
-        ':rocketsleigh:generateDebugRFile': FROM_CACHE,
-        ':rocketsleigh:generateDebugSources': SUCCESS,
-        ':rocketsleigh:javaPreCompileDebug': FROM_CACHE,
-        ':rocketsleigh:mergeDebugConsumerProguardFiles': SUCCESS,
-        ':rocketsleigh:mergeDebugJniLibFolders': FROM_CACHE,
-        ':rocketsleigh:mergeDebugShaders': FROM_CACHE,
-        ':rocketsleigh:packageDebugAssets': FROM_CACHE,
-        ':rocketsleigh:packageDebugRenderscript': NO_SOURCE,
-        ':rocketsleigh:packageDebugResources': FROM_CACHE,
-        ':rocketsleigh:platformAttrExtractor': FROM_CACHE,
-        ':rocketsleigh:preBuild': UP_TO_DATE,
-        ':rocketsleigh:preDebugBuild': UP_TO_DATE,
-        ':rocketsleigh:prepareLintJar': SUCCESS,
-        ':rocketsleigh:processDebugJavaRes': NO_SOURCE,
-        ':rocketsleigh:processDebugManifest': FROM_CACHE,
-        ':rocketsleigh:transformClassesAndResourcesWithPrepareIntermediateJarsForDebug': SUCCESS,
-        ':rocketsleigh:transformClassesAndResourcesWithSyncLibJarsForDebug': SUCCESS,
-        ':rocketsleigh:transformNativeLibsWithIntermediateJniLibsForDebug': SUCCESS,
-        ':rocketsleigh:transformNativeLibsWithMergeJniLibsForDebug': SUCCESS,
-        ':rocketsleigh:transformNativeLibsWithSyncJniLibsForDebug': SUCCESS,
-        ':rocketsleigh:transformResourcesWithMergeJavaResForDebug': SUCCESS,
-        ':santa-tracker:assembleDebug': SUCCESS,
-        ':santa-tracker:assembleDevelopmentDebug': SUCCESS,
-        ':santa-tracker:assembleProductionDebug': SUCCESS,
-        ':santa-tracker:checkDevelopmentDebugManifest': FROM_CACHE,
-        ':santa-tracker:checkProductionDebugManifest': FROM_CACHE,
-        ':santa-tracker:compileDevelopmentDebugAidl': FROM_CACHE,
-        ':santa-tracker:compileDevelopmentDebugJavaWithJavac': FROM_CACHE,
-        ':santa-tracker:compileDevelopmentDebugNdk': NO_SOURCE,
-        ':santa-tracker:compileDevelopmentDebugRenderscript': FROM_CACHE,
-        ':santa-tracker:compileDevelopmentDebugShaders': FROM_CACHE,
-        ':santa-tracker:compileDevelopmentDebugSources': UP_TO_DATE,
-        ':santa-tracker:compileProductionDebugAidl': FROM_CACHE,
-        ':santa-tracker:compileProductionDebugJavaWithJavac': FROM_CACHE,
-        ':santa-tracker:compileProductionDebugNdk': NO_SOURCE,
-        ':santa-tracker:compileProductionDebugRenderscript': FROM_CACHE,
-        ':santa-tracker:compileProductionDebugShaders': FROM_CACHE,
-        ':santa-tracker:compileProductionDebugSources': UP_TO_DATE,
-        ':santa-tracker:createDevelopmentDebugCompatibleScreenManifests': FROM_CACHE,
-        ':santa-tracker:createProductionDebugCompatibleScreenManifests': FROM_CACHE,
-        ':santa-tracker:generateDevelopmentDebugAssets': UP_TO_DATE,
-        ':santa-tracker:generateDevelopmentDebugBuildConfig': FROM_CACHE,
-        ':santa-tracker:generateDevelopmentDebugResources': UP_TO_DATE,
-        ':santa-tracker:generateDevelopmentDebugResValues': FROM_CACHE,
-        ':santa-tracker:generateDevelopmentDebugSources': SUCCESS,
-        ':santa-tracker:generateProductionDebugAssets': UP_TO_DATE,
-        ':santa-tracker:generateProductionDebugBuildConfig': FROM_CACHE,
-        ':santa-tracker:generateProductionDebugResources': UP_TO_DATE,
-        ':santa-tracker:generateProductionDebugResValues': FROM_CACHE,
-        ':santa-tracker:generateProductionDebugSources': SUCCESS,
-        ':santa-tracker:javaPreCompileDevelopmentDebug': FROM_CACHE,
-        ':santa-tracker:javaPreCompileProductionDebug': FROM_CACHE,
-        ':santa-tracker:mergeDevelopmentDebugAssets': FROM_CACHE,
-        ':santa-tracker:mergeDevelopmentDebugJniLibFolders': FROM_CACHE,
-        ':santa-tracker:mergeDevelopmentDebugResources': FROM_CACHE,
-        ':santa-tracker:mergeDevelopmentDebugShaders': FROM_CACHE,
-        ':santa-tracker:mergeProductionDebugAssets': FROM_CACHE,
-        ':santa-tracker:mergeProductionDebugJniLibFolders': FROM_CACHE,
-        ':santa-tracker:mergeProductionDebugResources': FROM_CACHE,
-        ':santa-tracker:mergeProductionDebugShaders': FROM_CACHE,
-        ':santa-tracker:packageDevelopmentDebug': SUCCESS,
-        ':santa-tracker:packageProductionDebug': SUCCESS,
-        ':santa-tracker:preBuild': UP_TO_DATE,
-        ':santa-tracker:preDevelopmentDebugBuild': FROM_CACHE,
-        ':santa-tracker:prepareLintJar': SUCCESS,
-        ':santa-tracker:preProductionDebugBuild': FROM_CACHE,
-        ':santa-tracker:processDevelopmentDebugGoogleServices': SUCCESS,
-        ':santa-tracker:processDevelopmentDebugJavaRes': NO_SOURCE,
-        ':santa-tracker:processDevelopmentDebugManifest': FROM_CACHE,
-        ':santa-tracker:processDevelopmentDebugResources': FROM_CACHE,
-        ':santa-tracker:processProductionDebugGoogleServices': SUCCESS,
-        ':santa-tracker:processProductionDebugJavaRes': NO_SOURCE,
-        ':santa-tracker:processProductionDebugManifest': FROM_CACHE,
-        ':santa-tracker:processProductionDebugResources': FROM_CACHE,
-        ':santa-tracker:splitsDiscoveryTaskDevelopmentDebug': FROM_CACHE,
-        ':santa-tracker:splitsDiscoveryTaskProductionDebug': FROM_CACHE,
-        ':santa-tracker:transformClassesWithDexBuilderForDevelopmentDebug': SUCCESS,
-        ':santa-tracker:transformClassesWithDexBuilderForProductionDebug': SUCCESS,
-        ':santa-tracker:transformClassesWithMultidexlistForProductionDebug': SUCCESS,
-        ':santa-tracker:transformDexArchiveWithDexMergerForDevelopmentDebug': SUCCESS,
-        ':santa-tracker:transformDexArchiveWithDexMergerForProductionDebug': SUCCESS,
-        ':santa-tracker:transformDexArchiveWithExternalLibsDexMergerForDevelopmentDebug': SUCCESS,
-        ':santa-tracker:transformNativeLibsWithMergeJniLibsForDevelopmentDebug': SUCCESS,
-        ':santa-tracker:transformNativeLibsWithMergeJniLibsForProductionDebug': SUCCESS,
-        ':santa-tracker:transformResourcesWithMergeJavaResForDevelopmentDebug': SUCCESS,
-        ':santa-tracker:transformResourcesWithMergeJavaResForProductionDebug': SUCCESS,
-        ':santa-tracker:validateSigningDevelopmentDebug': SUCCESS,
-        ':santa-tracker:validateSigningProductionDebug': SUCCESS,
-        ':snowdown:assembleDebug': SUCCESS,
-        ':snowdown:bundleDebug': SUCCESS,
-        ':snowdown:checkDebugManifest': FROM_CACHE,
-        ':snowdown:compileDebugAidl': FROM_CACHE,
-        ':snowdown:compileDebugJavaWithJavac': FROM_CACHE,
-        ':snowdown:compileDebugNdk': NO_SOURCE,
-        ':snowdown:compileDebugRenderscript': FROM_CACHE,
-        ':snowdown:compileDebugShaders': FROM_CACHE,
-        ':snowdown:compileDebugSources': UP_TO_DATE,
-        ':snowdown:extractDebugAnnotations': FROM_CACHE,
-        ':snowdown:generateDebugAssets': UP_TO_DATE,
-        ':snowdown:generateDebugBuildConfig': FROM_CACHE,
-        ':snowdown:generateDebugResources': UP_TO_DATE,
-        ':snowdown:generateDebugResValues': FROM_CACHE,
-        ':snowdown:generateDebugRFile': FROM_CACHE,
-        ':snowdown:generateDebugSources': SUCCESS,
-        ':snowdown:javaPreCompileDebug': FROM_CACHE,
-        ':snowdown:mergeDebugConsumerProguardFiles': SUCCESS,
-        ':snowdown:mergeDebugJniLibFolders': FROM_CACHE,
-        ':snowdown:mergeDebugShaders': FROM_CACHE,
-        ':snowdown:packageDebugAssets': FROM_CACHE,
-        ':snowdown:packageDebugRenderscript': NO_SOURCE,
-        ':snowdown:packageDebugResources': FROM_CACHE,
-        ':snowdown:platformAttrExtractor': FROM_CACHE,
-        ':snowdown:preBuild': UP_TO_DATE,
-        ':snowdown:preDebugBuild': UP_TO_DATE,
-        ':snowdown:prepareLintJar': SUCCESS,
-        ':snowdown:processDebugJavaRes': NO_SOURCE,
-        ':snowdown:processDebugManifest': FROM_CACHE,
-        ':snowdown:transformClassesAndResourcesWithPrepareIntermediateJarsForDebug': SUCCESS,
-        ':snowdown:transformClassesAndResourcesWithSyncLibJarsForDebug': SUCCESS,
-        ':snowdown:transformNativeLibsWithIntermediateJniLibsForDebug': SUCCESS,
-        ':snowdown:transformNativeLibsWithMergeJniLibsForDebug': SUCCESS,
-        ':snowdown:transformNativeLibsWithSyncJniLibsForDebug': SUCCESS,
-        ':snowdown:transformResourcesWithMergeJavaResForDebug': SUCCESS,
-        ':village:assembleDebug': SUCCESS,
-        ':village:bundleDebug': SUCCESS,
-        ':village:checkDebugManifest': FROM_CACHE,
-        ':village:compileDebugAidl': FROM_CACHE,
-        ':village:compileDebugJavaWithJavac': FROM_CACHE,
-        ':village:compileDebugNdk': NO_SOURCE,
-        ':village:compileDebugRenderscript': FROM_CACHE,
-        ':village:compileDebugShaders': FROM_CACHE,
-        ':village:compileDebugSources': UP_TO_DATE,
-        ':village:extractDebugAnnotations': FROM_CACHE,
-        ':village:generateDebugAssets': UP_TO_DATE,
-        ':village:generateDebugBuildConfig': FROM_CACHE,
-        ':village:generateDebugResources': UP_TO_DATE,
-        ':village:generateDebugResValues': FROM_CACHE,
-        ':village:generateDebugRFile': FROM_CACHE,
-        ':village:generateDebugSources': SUCCESS,
-        ':village:javaPreCompileDebug': FROM_CACHE,
-        ':village:mergeDebugConsumerProguardFiles': SUCCESS,
-        ':village:mergeDebugJniLibFolders': FROM_CACHE,
-        ':village:mergeDebugShaders': FROM_CACHE,
-        ':village:packageDebugAssets': FROM_CACHE,
-        ':village:packageDebugRenderscript': NO_SOURCE,
-        ':village:packageDebugResources': FROM_CACHE,
-        ':village:platformAttrExtractor': FROM_CACHE,
-        ':village:preBuild': UP_TO_DATE,
-        ':village:preDebugBuild': UP_TO_DATE,
-        ':village:prepareLintJar': SUCCESS,
-        ':village:processDebugJavaRes': NO_SOURCE,
-        ':village:processDebugManifest': FROM_CACHE,
-        ':village:transformClassesAndResourcesWithPrepareIntermediateJarsForDebug': SUCCESS,
-        ':village:transformClassesAndResourcesWithSyncLibJarsForDebug': SUCCESS,
-        ':village:transformNativeLibsWithIntermediateJniLibsForDebug': SUCCESS,
-        ':village:transformNativeLibsWithMergeJniLibsForDebug': SUCCESS,
-        ':village:transformNativeLibsWithSyncJniLibsForDebug': SUCCESS,
-        ':village:transformResourcesWithMergeJavaResForDebug': SUCCESS,
-        ':wearable:assembleDebug': SUCCESS,
-        ':wearable:checkDebugManifest': FROM_CACHE,
-        ':wearable:compileDebugAidl': FROM_CACHE,
-        ':wearable:compileDebugJavaWithJavac': FROM_CACHE,
-        ':wearable:compileDebugNdk': NO_SOURCE,
-        ':wearable:compileDebugRenderscript': FROM_CACHE,
-        ':wearable:compileDebugShaders': FROM_CACHE,
-        ':wearable:compileDebugSources': UP_TO_DATE,
-        ':wearable:createDebugCompatibleScreenManifests': FROM_CACHE,
-        ':wearable:generateDebugAssets': UP_TO_DATE,
-        ':wearable:generateDebugBuildConfig': FROM_CACHE,
-        ':wearable:generateDebugResources': UP_TO_DATE,
-        ':wearable:generateDebugResValues': FROM_CACHE,
-        ':wearable:generateDebugSources': SUCCESS,
-        ':wearable:javaPreCompileDebug': FROM_CACHE,
-        ':wearable:mergeDebugAssets': FROM_CACHE,
-        ':wearable:mergeDebugJniLibFolders': FROM_CACHE,
-        ':wearable:mergeDebugResources': FROM_CACHE,
-        ':wearable:mergeDebugShaders': FROM_CACHE,
-        ':wearable:packageDebug': SUCCESS,
-        ':wearable:preBuild': UP_TO_DATE,
-        ':wearable:preDebugBuild': FROM_CACHE,
-        ':wearable:prepareLintJar': SUCCESS,
-        ':wearable:processDebugJavaRes': NO_SOURCE,
-        ':wearable:processDebugManifest': FROM_CACHE,
-        ':wearable:processDebugResources': FROM_CACHE,
-        ':wearable:splitsDiscoveryTaskDebug': FROM_CACHE,
-        ':wearable:transformClassesWithDexBuilderForDebug': SUCCESS,
-        ':wearable:transformDexArchiveWithDexMergerForDebug': SUCCESS,
-        ':wearable:transformDexArchiveWithExternalLibsDexMergerForDebug': SUCCESS,
-        ':wearable:transformNativeLibsWithMergeJniLibsForDebug': SUCCESS,
-        ':wearable:transformResourcesWithMergeJavaResForDebug': SUCCESS,
-        ':wearable:validateSigningDebug': SUCCESS,
-    )
+    def expectedResults(boolean fixApplied) {
+        def builder = ImmutableMap.<String, TaskOutcome>builder()
+        builder.put(':common:assembleDebug', SUCCESS)
+        builder.put(':common:bundleDebug', SUCCESS)
+        builder.put(':common:checkDebugManifest', fixApplied ? FROM_CACHE : SUCCESS)
+        builder.put(':common:compileDebugAidl', FROM_CACHE)
+        builder.put(':common:compileDebugJavaWithJavac', fixApplied ? FROM_CACHE : SUCCESS)
+        builder.put(':common:compileDebugNdk', NO_SOURCE)
+        builder.put(':common:compileDebugRenderscript', FROM_CACHE)
+        builder.put(':common:compileDebugShaders', FROM_CACHE)
+        builder.put(':common:compileDebugSources', fixApplied ? UP_TO_DATE : SUCCESS)
+        builder.put(':common:extractDebugAnnotations', FROM_CACHE)
+        builder.put(':common:generateDebugAssets', UP_TO_DATE)
+        builder.put(':common:generateDebugBuildConfig', FROM_CACHE)
+        builder.put(':common:generateDebugResources', UP_TO_DATE)
+        builder.put(':common:generateDebugResValues', FROM_CACHE)
+        builder.put(':common:generateDebugRFile', FROM_CACHE)
+        builder.put(':common:generateDebugSources', SUCCESS)
+        builder.put(':common:javaPreCompileDebug', FROM_CACHE)
+        builder.put(':common:mergeDebugConsumerProguardFiles', SUCCESS)
+        builder.put(':common:mergeDebugJniLibFolders', FROM_CACHE)
+        builder.put(':common:mergeDebugShaders', FROM_CACHE)
+        builder.put(':common:packageDebugAssets', FROM_CACHE)
+        builder.put(':common:packageDebugRenderscript', NO_SOURCE)
+        builder.put(':common:packageDebugResources', FROM_CACHE)
+        builder.put(':common:platformAttrExtractor', FROM_CACHE)
+        builder.put(':common:preBuild', UP_TO_DATE)
+        builder.put(':common:preDebugBuild', UP_TO_DATE)
+        builder.put(':common:prepareLintJar', SUCCESS)
+        builder.put(':common:processDebugJavaRes', NO_SOURCE)
+        builder.put(':common:processDebugManifest', FROM_CACHE)
+        builder.put(':common:transformClassesAndResourcesWithPrepareIntermediateJarsForDebug', SUCCESS)
+        builder.put(':common:transformClassesAndResourcesWithSyncLibJarsForDebug', SUCCESS)
+        builder.put(':common:transformNativeLibsWithIntermediateJniLibsForDebug', SUCCESS)
+        builder.put(':common:transformNativeLibsWithMergeJniLibsForDebug', SUCCESS)
+        builder.put(':common:transformNativeLibsWithSyncJniLibsForDebug', SUCCESS)
+        builder.put(':common:transformResourcesWithMergeJavaResForDebug', SUCCESS)
+        builder.put(':dasherdancer:assembleDebug', SUCCESS)
+        builder.put(':dasherdancer:bundleDebug', SUCCESS)
+        builder.put(':dasherdancer:checkDebugManifest', fixApplied ? FROM_CACHE : SUCCESS)
+        builder.put(':dasherdancer:compileDebugAidl', FROM_CACHE)
+        builder.put(':dasherdancer:compileDebugJavaWithJavac', fixApplied ? FROM_CACHE : SUCCESS)
+        builder.put(':dasherdancer:compileDebugNdk', NO_SOURCE)
+        builder.put(':dasherdancer:compileDebugRenderscript', FROM_CACHE)
+        builder.put(':dasherdancer:compileDebugShaders', FROM_CACHE)
+        builder.put(':dasherdancer:compileDebugSources', fixApplied ? UP_TO_DATE : SUCCESS)
+        builder.put(':dasherdancer:extractDebugAnnotations', FROM_CACHE)
+        builder.put(':dasherdancer:generateDebugAssets', UP_TO_DATE)
+        builder.put(':dasherdancer:generateDebugBuildConfig', FROM_CACHE)
+        builder.put(':dasherdancer:generateDebugResources', UP_TO_DATE)
+        builder.put(':dasherdancer:generateDebugResValues', FROM_CACHE)
+        builder.put(':dasherdancer:generateDebugRFile', FROM_CACHE)
+        builder.put(':dasherdancer:generateDebugSources', SUCCESS)
+        builder.put(':dasherdancer:javaPreCompileDebug', FROM_CACHE)
+        builder.put(':dasherdancer:mergeDebugConsumerProguardFiles', SUCCESS)
+        builder.put(':dasherdancer:mergeDebugJniLibFolders', FROM_CACHE)
+        builder.put(':dasherdancer:mergeDebugShaders', FROM_CACHE)
+        builder.put(':dasherdancer:packageDebugAssets', FROM_CACHE)
+        builder.put(':dasherdancer:packageDebugRenderscript', NO_SOURCE)
+        builder.put(':dasherdancer:packageDebugResources', FROM_CACHE)
+        builder.put(':dasherdancer:platformAttrExtractor', FROM_CACHE)
+        builder.put(':dasherdancer:preBuild', UP_TO_DATE)
+        builder.put(':dasherdancer:preDebugBuild', UP_TO_DATE)
+        builder.put(':dasherdancer:prepareLintJar', SUCCESS)
+        builder.put(':dasherdancer:processDebugJavaRes', NO_SOURCE)
+        builder.put(':dasherdancer:processDebugManifest', FROM_CACHE)
+        builder.put(':dasherdancer:transformClassesAndResourcesWithPrepareIntermediateJarsForDebug', SUCCESS)
+        builder.put(':dasherdancer:transformClassesAndResourcesWithSyncLibJarsForDebug', SUCCESS)
+        builder.put(':dasherdancer:transformNativeLibsWithIntermediateJniLibsForDebug', SUCCESS)
+        builder.put(':dasherdancer:transformNativeLibsWithMergeJniLibsForDebug', SUCCESS)
+        builder.put(':dasherdancer:transformNativeLibsWithSyncJniLibsForDebug', SUCCESS)
+        builder.put(':dasherdancer:transformResourcesWithMergeJavaResForDebug', SUCCESS)
+        builder.put(':doodles:assembleDebug', SUCCESS)
+        builder.put(':doodles:bundleDebug', SUCCESS)
+        builder.put(':doodles:checkDebugManifest', fixApplied ? FROM_CACHE : SUCCESS)
+        builder.put(':doodles:compileDebugAidl', FROM_CACHE)
+        builder.put(':doodles:compileDebugJavaWithJavac', fixApplied ? FROM_CACHE : SUCCESS)
+        builder.put(':doodles:compileDebugNdk', NO_SOURCE)
+        builder.put(':doodles:compileDebugRenderscript', FROM_CACHE)
+        builder.put(':doodles:compileDebugShaders', FROM_CACHE)
+        builder.put(':doodles:compileDebugSources', fixApplied ? UP_TO_DATE : SUCCESS)
+        builder.put(':doodles:extractDebugAnnotations', FROM_CACHE)
+        builder.put(':doodles:generateDebugAssets', UP_TO_DATE)
+        builder.put(':doodles:generateDebugBuildConfig', FROM_CACHE)
+        builder.put(':doodles:generateDebugResources', UP_TO_DATE)
+        builder.put(':doodles:generateDebugResValues', FROM_CACHE)
+        builder.put(':doodles:generateDebugRFile', FROM_CACHE)
+        builder.put(':doodles:generateDebugSources', SUCCESS)
+        builder.put(':doodles:javaPreCompileDebug', FROM_CACHE)
+        builder.put(':doodles:mergeDebugConsumerProguardFiles', SUCCESS)
+        builder.put(':doodles:mergeDebugJniLibFolders', FROM_CACHE)
+        builder.put(':doodles:mergeDebugShaders', FROM_CACHE)
+        builder.put(':doodles:packageDebugAssets', FROM_CACHE)
+        builder.put(':doodles:packageDebugRenderscript', NO_SOURCE)
+        builder.put(':doodles:packageDebugResources', FROM_CACHE)
+        builder.put(':doodles:platformAttrExtractor', FROM_CACHE)
+        builder.put(':doodles:preBuild', UP_TO_DATE)
+        builder.put(':doodles:preDebugBuild', UP_TO_DATE)
+        builder.put(':doodles:prepareLintJar', SUCCESS)
+        builder.put(':doodles:processDebugJavaRes', NO_SOURCE)
+        builder.put(':doodles:processDebugManifest', FROM_CACHE)
+        builder.put(':doodles:transformClassesAndResourcesWithPrepareIntermediateJarsForDebug', SUCCESS)
+        builder.put(':doodles:transformClassesAndResourcesWithSyncLibJarsForDebug', SUCCESS)
+        builder.put(':doodles:transformNativeLibsWithIntermediateJniLibsForDebug', SUCCESS)
+        builder.put(':doodles:transformNativeLibsWithMergeJniLibsForDebug', SUCCESS)
+        builder.put(':doodles:transformNativeLibsWithSyncJniLibsForDebug', SUCCESS)
+        builder.put(':doodles:transformResourcesWithMergeJavaResForDebug', SUCCESS)
+        builder.put(':presentquest:assembleDebug', SUCCESS)
+        builder.put(':presentquest:bundleDebug', SUCCESS)
+        builder.put(':presentquest:checkDebugManifest', fixApplied ? FROM_CACHE : SUCCESS)
+        builder.put(':presentquest:compileDebugAidl', FROM_CACHE)
+        builder.put(':presentquest:compileDebugJavaWithJavac', fixApplied ? FROM_CACHE : SUCCESS)
+        builder.put(':presentquest:compileDebugNdk', NO_SOURCE)
+        builder.put(':presentquest:compileDebugRenderscript', FROM_CACHE)
+        builder.put(':presentquest:compileDebugShaders', FROM_CACHE)
+        builder.put(':presentquest:compileDebugSources', fixApplied ? UP_TO_DATE : SUCCESS)
+        builder.put(':presentquest:extractDebugAnnotations', FROM_CACHE)
+        builder.put(':presentquest:generateDebugAssets', UP_TO_DATE)
+        builder.put(':presentquest:generateDebugBuildConfig', FROM_CACHE)
+        builder.put(':presentquest:generateDebugResources', UP_TO_DATE)
+        builder.put(':presentquest:generateDebugResValues', FROM_CACHE)
+        builder.put(':presentquest:generateDebugRFile', FROM_CACHE)
+        builder.put(':presentquest:generateDebugSources', SUCCESS)
+        builder.put(':presentquest:javaPreCompileDebug', FROM_CACHE)
+        builder.put(':presentquest:mergeDebugConsumerProguardFiles', SUCCESS)
+        builder.put(':presentquest:mergeDebugJniLibFolders', FROM_CACHE)
+        builder.put(':presentquest:mergeDebugShaders', FROM_CACHE)
+        builder.put(':presentquest:packageDebugAssets', FROM_CACHE)
+        builder.put(':presentquest:packageDebugRenderscript', NO_SOURCE)
+        builder.put(':presentquest:packageDebugResources', FROM_CACHE)
+        builder.put(':presentquest:platformAttrExtractor', FROM_CACHE)
+        builder.put(':presentquest:preBuild', UP_TO_DATE)
+        builder.put(':presentquest:preDebugBuild', UP_TO_DATE)
+        builder.put(':presentquest:prepareLintJar', SUCCESS)
+        builder.put(':presentquest:processDebugJavaRes', NO_SOURCE)
+        builder.put(':presentquest:processDebugManifest', FROM_CACHE)
+        builder.put(':presentquest:transformClassesAndResourcesWithPrepareIntermediateJarsForDebug', SUCCESS)
+        builder.put(':presentquest:transformClassesAndResourcesWithSyncLibJarsForDebug', SUCCESS)
+        builder.put(':presentquest:transformNativeLibsWithIntermediateJniLibsForDebug', SUCCESS)
+        builder.put(':presentquest:transformNativeLibsWithMergeJniLibsForDebug', SUCCESS)
+        builder.put(':presentquest:transformNativeLibsWithSyncJniLibsForDebug', SUCCESS)
+        builder.put(':presentquest:transformResourcesWithMergeJavaResForDebug', SUCCESS)
+        builder.put(':rocketsleigh:assembleDebug', SUCCESS)
+        builder.put(':rocketsleigh:bundleDebug', SUCCESS)
+        builder.put(':rocketsleigh:checkDebugManifest', fixApplied ? FROM_CACHE : SUCCESS)
+        builder.put(':rocketsleigh:compileDebugAidl', FROM_CACHE)
+        builder.put(':rocketsleigh:compileDebugJavaWithJavac', fixApplied ? FROM_CACHE : SUCCESS)
+        builder.put(':rocketsleigh:compileDebugNdk', NO_SOURCE)
+        builder.put(':rocketsleigh:compileDebugRenderscript', FROM_CACHE)
+        builder.put(':rocketsleigh:compileDebugShaders', FROM_CACHE)
+        builder.put(':rocketsleigh:compileDebugSources', fixApplied ? UP_TO_DATE : SUCCESS)
+        builder.put(':rocketsleigh:extractDebugAnnotations', FROM_CACHE)
+        builder.put(':rocketsleigh:generateDebugAssets', UP_TO_DATE)
+        builder.put(':rocketsleigh:generateDebugBuildConfig', FROM_CACHE)
+        builder.put(':rocketsleigh:generateDebugResources', UP_TO_DATE)
+        builder.put(':rocketsleigh:generateDebugResValues', FROM_CACHE)
+        builder.put(':rocketsleigh:generateDebugRFile', FROM_CACHE)
+        builder.put(':rocketsleigh:generateDebugSources', SUCCESS)
+        builder.put(':rocketsleigh:javaPreCompileDebug', FROM_CACHE)
+        builder.put(':rocketsleigh:mergeDebugConsumerProguardFiles', SUCCESS)
+        builder.put(':rocketsleigh:mergeDebugJniLibFolders', FROM_CACHE)
+        builder.put(':rocketsleigh:mergeDebugShaders', FROM_CACHE)
+        builder.put(':rocketsleigh:packageDebugAssets', FROM_CACHE)
+        builder.put(':rocketsleigh:packageDebugRenderscript', NO_SOURCE)
+        builder.put(':rocketsleigh:packageDebugResources', FROM_CACHE)
+        builder.put(':rocketsleigh:platformAttrExtractor', FROM_CACHE)
+        builder.put(':rocketsleigh:preBuild', UP_TO_DATE)
+        builder.put(':rocketsleigh:preDebugBuild', UP_TO_DATE)
+        builder.put(':rocketsleigh:prepareLintJar', SUCCESS)
+        builder.put(':rocketsleigh:processDebugJavaRes', NO_SOURCE)
+        builder.put(':rocketsleigh:processDebugManifest', FROM_CACHE)
+        builder.put(':rocketsleigh:transformClassesAndResourcesWithPrepareIntermediateJarsForDebug', SUCCESS)
+        builder.put(':rocketsleigh:transformClassesAndResourcesWithSyncLibJarsForDebug', SUCCESS)
+        builder.put(':rocketsleigh:transformNativeLibsWithIntermediateJniLibsForDebug', SUCCESS)
+        builder.put(':rocketsleigh:transformNativeLibsWithMergeJniLibsForDebug', SUCCESS)
+        builder.put(':rocketsleigh:transformNativeLibsWithSyncJniLibsForDebug', SUCCESS)
+        builder.put(':rocketsleigh:transformResourcesWithMergeJavaResForDebug', SUCCESS)
+        builder.put(':santa-tracker:assembleDebug', SUCCESS)
+        builder.put(':santa-tracker:assembleDevelopmentDebug', SUCCESS)
+        builder.put(':santa-tracker:assembleProductionDebug', SUCCESS)
+        builder.put(':santa-tracker:checkDevelopmentDebugManifest', fixApplied ? FROM_CACHE : SUCCESS)
+        builder.put(':santa-tracker:checkProductionDebugManifest', FROM_CACHE)
+        builder.put(':santa-tracker:compileDevelopmentDebugAidl', FROM_CACHE)
+        builder.put(':santa-tracker:compileDevelopmentDebugJavaWithJavac', fixApplied ? FROM_CACHE : SUCCESS)
+        builder.put(':santa-tracker:compileDevelopmentDebugNdk', NO_SOURCE)
+        builder.put(':santa-tracker:compileDevelopmentDebugRenderscript', FROM_CACHE)
+        builder.put(':santa-tracker:compileDevelopmentDebugShaders', FROM_CACHE)
+        builder.put(':santa-tracker:compileDevelopmentDebugSources', fixApplied ? UP_TO_DATE : SUCCESS)
+        builder.put(':santa-tracker:compileProductionDebugAidl', FROM_CACHE)
+        builder.put(':santa-tracker:compileProductionDebugJavaWithJavac', fixApplied ? FROM_CACHE : SUCCESS)
+        builder.put(':santa-tracker:compileProductionDebugNdk', NO_SOURCE)
+        builder.put(':santa-tracker:compileProductionDebugRenderscript', FROM_CACHE)
+        builder.put(':santa-tracker:compileProductionDebugShaders', FROM_CACHE)
+        builder.put(':santa-tracker:compileProductionDebugSources', fixApplied ? UP_TO_DATE : SUCCESS)
+        builder.put(':santa-tracker:createDevelopmentDebugCompatibleScreenManifests', FROM_CACHE)
+        builder.put(':santa-tracker:createProductionDebugCompatibleScreenManifests', FROM_CACHE)
+        builder.put(':santa-tracker:generateDevelopmentDebugAssets', UP_TO_DATE)
+        builder.put(':santa-tracker:generateDevelopmentDebugBuildConfig', FROM_CACHE)
+        builder.put(':santa-tracker:generateDevelopmentDebugResources', UP_TO_DATE)
+        builder.put(':santa-tracker:generateDevelopmentDebugResValues', FROM_CACHE)
+        builder.put(':santa-tracker:generateDevelopmentDebugSources', SUCCESS)
+        builder.put(':santa-tracker:generateProductionDebugAssets', UP_TO_DATE)
+        builder.put(':santa-tracker:generateProductionDebugBuildConfig', FROM_CACHE)
+        builder.put(':santa-tracker:generateProductionDebugResources', UP_TO_DATE)
+        builder.put(':santa-tracker:generateProductionDebugResValues', FROM_CACHE)
+        builder.put(':santa-tracker:generateProductionDebugSources', SUCCESS)
+        builder.put(':santa-tracker:javaPreCompileDevelopmentDebug', FROM_CACHE)
+        builder.put(':santa-tracker:javaPreCompileProductionDebug', FROM_CACHE)
+        builder.put(':santa-tracker:mergeDevelopmentDebugAssets', FROM_CACHE)
+        builder.put(':santa-tracker:mergeDevelopmentDebugJniLibFolders', FROM_CACHE)
+        builder.put(':santa-tracker:mergeDevelopmentDebugResources', FROM_CACHE)
+        builder.put(':santa-tracker:mergeDevelopmentDebugShaders', FROM_CACHE)
+        builder.put(':santa-tracker:mergeProductionDebugAssets', FROM_CACHE)
+        builder.put(':santa-tracker:mergeProductionDebugJniLibFolders', FROM_CACHE)
+        builder.put(':santa-tracker:mergeProductionDebugResources', FROM_CACHE)
+        builder.put(':santa-tracker:mergeProductionDebugShaders', FROM_CACHE)
+        builder.put(':santa-tracker:packageDevelopmentDebug', SUCCESS)
+        builder.put(':santa-tracker:packageProductionDebug', SUCCESS)
+        builder.put(':santa-tracker:preBuild', UP_TO_DATE)
+        builder.put(':santa-tracker:preDevelopmentDebugBuild', FROM_CACHE)
+        builder.put(':santa-tracker:prepareLintJar', SUCCESS)
+        builder.put(':santa-tracker:preProductionDebugBuild', FROM_CACHE)
+        builder.put(':santa-tracker:processDevelopmentDebugGoogleServices', SUCCESS)
+        builder.put(':santa-tracker:processDevelopmentDebugJavaRes', NO_SOURCE)
+        builder.put(':santa-tracker:processDevelopmentDebugManifest', FROM_CACHE)
+        builder.put(':santa-tracker:processDevelopmentDebugResources', FROM_CACHE)
+        builder.put(':santa-tracker:processProductionDebugGoogleServices', SUCCESS)
+        builder.put(':santa-tracker:processProductionDebugJavaRes', NO_SOURCE)
+        builder.put(':santa-tracker:processProductionDebugManifest', FROM_CACHE)
+        builder.put(':santa-tracker:processProductionDebugResources', FROM_CACHE)
+        builder.put(':santa-tracker:splitsDiscoveryTaskDevelopmentDebug', FROM_CACHE)
+        builder.put(':santa-tracker:splitsDiscoveryTaskProductionDebug', FROM_CACHE)
+        builder.put(':santa-tracker:transformClassesWithDexBuilderForDevelopmentDebug', SUCCESS)
+        builder.put(':santa-tracker:transformClassesWithDexBuilderForProductionDebug', SUCCESS)
+        builder.put(':santa-tracker:transformClassesWithMultidexlistForProductionDebug', SUCCESS)
+        builder.put(':santa-tracker:transformDexArchiveWithDexMergerForDevelopmentDebug', SUCCESS)
+        builder.put(':santa-tracker:transformDexArchiveWithDexMergerForProductionDebug', SUCCESS)
+        builder.put(':santa-tracker:transformDexArchiveWithExternalLibsDexMergerForDevelopmentDebug', SUCCESS)
+        builder.put(':santa-tracker:transformNativeLibsWithMergeJniLibsForDevelopmentDebug', SUCCESS)
+        builder.put(':santa-tracker:transformNativeLibsWithMergeJniLibsForProductionDebug', SUCCESS)
+        builder.put(':santa-tracker:transformResourcesWithMergeJavaResForDevelopmentDebug', SUCCESS)
+        builder.put(':santa-tracker:transformResourcesWithMergeJavaResForProductionDebug', SUCCESS)
+        builder.put(':santa-tracker:validateSigningDevelopmentDebug', SUCCESS)
+        builder.put(':santa-tracker:validateSigningProductionDebug', SUCCESS)
+        builder.put(':snowdown:assembleDebug', SUCCESS)
+        builder.put(':snowdown:bundleDebug', SUCCESS)
+        builder.put(':snowdown:checkDebugManifest', fixApplied ? FROM_CACHE : SUCCESS)
+        builder.put(':snowdown:compileDebugAidl', FROM_CACHE)
+        builder.put(':snowdown:compileDebugJavaWithJavac', fixApplied ? FROM_CACHE : SUCCESS)
+        builder.put(':snowdown:compileDebugNdk', NO_SOURCE)
+        builder.put(':snowdown:compileDebugRenderscript', FROM_CACHE)
+        builder.put(':snowdown:compileDebugShaders', FROM_CACHE)
+        builder.put(':snowdown:compileDebugSources', fixApplied ? UP_TO_DATE : SUCCESS)
+        builder.put(':snowdown:extractDebugAnnotations', FROM_CACHE)
+        builder.put(':snowdown:generateDebugAssets', UP_TO_DATE)
+        builder.put(':snowdown:generateDebugBuildConfig', FROM_CACHE)
+        builder.put(':snowdown:generateDebugResources', UP_TO_DATE)
+        builder.put(':snowdown:generateDebugResValues', FROM_CACHE)
+        builder.put(':snowdown:generateDebugRFile', FROM_CACHE)
+        builder.put(':snowdown:generateDebugSources', SUCCESS)
+        builder.put(':snowdown:javaPreCompileDebug', FROM_CACHE)
+        builder.put(':snowdown:mergeDebugConsumerProguardFiles', SUCCESS)
+        builder.put(':snowdown:mergeDebugJniLibFolders', FROM_CACHE)
+        builder.put(':snowdown:mergeDebugShaders', FROM_CACHE)
+        builder.put(':snowdown:packageDebugAssets', FROM_CACHE)
+        builder.put(':snowdown:packageDebugRenderscript', NO_SOURCE)
+        builder.put(':snowdown:packageDebugResources', FROM_CACHE)
+        builder.put(':snowdown:platformAttrExtractor', FROM_CACHE)
+        builder.put(':snowdown:preBuild', UP_TO_DATE)
+        builder.put(':snowdown:preDebugBuild', UP_TO_DATE)
+        builder.put(':snowdown:prepareLintJar', SUCCESS)
+        builder.put(':snowdown:processDebugJavaRes', NO_SOURCE)
+        builder.put(':snowdown:processDebugManifest', FROM_CACHE)
+        builder.put(':snowdown:transformClassesAndResourcesWithPrepareIntermediateJarsForDebug', SUCCESS)
+        builder.put(':snowdown:transformClassesAndResourcesWithSyncLibJarsForDebug', SUCCESS)
+        builder.put(':snowdown:transformNativeLibsWithIntermediateJniLibsForDebug', SUCCESS)
+        builder.put(':snowdown:transformNativeLibsWithMergeJniLibsForDebug', SUCCESS)
+        builder.put(':snowdown:transformNativeLibsWithSyncJniLibsForDebug', SUCCESS)
+        builder.put(':snowdown:transformResourcesWithMergeJavaResForDebug', SUCCESS)
+        builder.put(':village:assembleDebug', SUCCESS)
+        builder.put(':village:bundleDebug', SUCCESS)
+        builder.put(':village:checkDebugManifest', fixApplied ? FROM_CACHE : SUCCESS)
+        builder.put(':village:compileDebugAidl', FROM_CACHE)
+        builder.put(':village:compileDebugJavaWithJavac', fixApplied ? FROM_CACHE : SUCCESS)
+        builder.put(':village:compileDebugNdk', NO_SOURCE)
+        builder.put(':village:compileDebugRenderscript', FROM_CACHE)
+        builder.put(':village:compileDebugShaders', FROM_CACHE)
+        builder.put(':village:compileDebugSources', fixApplied ? UP_TO_DATE : SUCCESS)
+        builder.put(':village:extractDebugAnnotations', FROM_CACHE)
+        builder.put(':village:generateDebugAssets', UP_TO_DATE)
+        builder.put(':village:generateDebugBuildConfig', FROM_CACHE)
+        builder.put(':village:generateDebugResources', UP_TO_DATE)
+        builder.put(':village:generateDebugResValues', FROM_CACHE)
+        builder.put(':village:generateDebugRFile', FROM_CACHE)
+        builder.put(':village:generateDebugSources', SUCCESS)
+        builder.put(':village:javaPreCompileDebug', FROM_CACHE)
+        builder.put(':village:mergeDebugConsumerProguardFiles', SUCCESS)
+        builder.put(':village:mergeDebugJniLibFolders', FROM_CACHE)
+        builder.put(':village:mergeDebugShaders', FROM_CACHE)
+        builder.put(':village:packageDebugAssets', FROM_CACHE)
+        builder.put(':village:packageDebugRenderscript', NO_SOURCE)
+        builder.put(':village:packageDebugResources', FROM_CACHE)
+        builder.put(':village:platformAttrExtractor', FROM_CACHE)
+        builder.put(':village:preBuild', UP_TO_DATE)
+        builder.put(':village:preDebugBuild', UP_TO_DATE)
+        builder.put(':village:prepareLintJar', SUCCESS)
+        builder.put(':village:processDebugJavaRes', NO_SOURCE)
+        builder.put(':village:processDebugManifest', FROM_CACHE)
+        builder.put(':village:transformClassesAndResourcesWithPrepareIntermediateJarsForDebug', SUCCESS)
+        builder.put(':village:transformClassesAndResourcesWithSyncLibJarsForDebug', SUCCESS)
+        builder.put(':village:transformNativeLibsWithIntermediateJniLibsForDebug', SUCCESS)
+        builder.put(':village:transformNativeLibsWithMergeJniLibsForDebug', SUCCESS)
+        builder.put(':village:transformNativeLibsWithSyncJniLibsForDebug', SUCCESS)
+        builder.put(':village:transformResourcesWithMergeJavaResForDebug', SUCCESS)
+        builder.put(':wearable:assembleDebug', SUCCESS)
+        builder.put(':wearable:checkDebugManifest', fixApplied ? FROM_CACHE : SUCCESS)
+        builder.put(':wearable:compileDebugAidl', FROM_CACHE)
+        builder.put(':wearable:compileDebugJavaWithJavac', fixApplied ? FROM_CACHE : SUCCESS)
+        builder.put(':wearable:compileDebugNdk', NO_SOURCE)
+        builder.put(':wearable:compileDebugRenderscript', FROM_CACHE)
+        builder.put(':wearable:compileDebugShaders', FROM_CACHE)
+        builder.put(':wearable:compileDebugSources', fixApplied ? UP_TO_DATE : SUCCESS)
+        builder.put(':wearable:createDebugCompatibleScreenManifests', FROM_CACHE)
+        builder.put(':wearable:generateDebugAssets', UP_TO_DATE)
+        builder.put(':wearable:generateDebugBuildConfig', FROM_CACHE)
+        builder.put(':wearable:generateDebugResources', UP_TO_DATE)
+        builder.put(':wearable:generateDebugResValues', FROM_CACHE)
+        builder.put(':wearable:generateDebugSources', SUCCESS)
+        builder.put(':wearable:javaPreCompileDebug', FROM_CACHE)
+        builder.put(':wearable:mergeDebugAssets', FROM_CACHE)
+        builder.put(':wearable:mergeDebugJniLibFolders', FROM_CACHE)
+        builder.put(':wearable:mergeDebugResources', FROM_CACHE)
+        builder.put(':wearable:mergeDebugShaders', FROM_CACHE)
+        builder.put(':wearable:packageDebug', SUCCESS)
+        builder.put(':wearable:preBuild', UP_TO_DATE)
+        builder.put(':wearable:preDebugBuild', FROM_CACHE)
+        builder.put(':wearable:prepareLintJar', SUCCESS)
+        builder.put(':wearable:processDebugJavaRes', NO_SOURCE)
+        builder.put(':wearable:processDebugManifest', FROM_CACHE)
+        builder.put(':wearable:processDebugResources', FROM_CACHE)
+        builder.put(':wearable:splitsDiscoveryTaskDebug', FROM_CACHE)
+        builder.put(':wearable:transformClassesWithDexBuilderForDebug', SUCCESS)
+        builder.put(':wearable:transformDexArchiveWithDexMergerForDebug', SUCCESS)
+        builder.put(':wearable:transformDexArchiveWithExternalLibsDexMergerForDebug', SUCCESS)
+        builder.put(':wearable:transformNativeLibsWithMergeJniLibsForDebug', SUCCESS)
+        builder.put(':wearable:transformResourcesWithMergeJavaResForDebug', SUCCESS)
+        builder.put(':wearable:validateSigningDebug', SUCCESS)
+        return new ExpectedResults(builder.build())
+    }
 
     GradleRunner createGradleRunner() {
         def gradleRunner = GradleRunner.create()
