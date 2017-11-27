@@ -19,6 +19,7 @@ class RelocationTest extends Specification {
     static final String GRADLE_INSTALLATION_PROPERTY = "org.gradle.android.test.gradle-installation"
     static final String ANDROID_VERSION_PROPERTY = "org.gradle.android.test.android-version"
     static final String ANDROID_CACHE_FIX_VERSION_PROPERTY = "org.gradle.android.test.android-cache-fix-version"
+    static final String SCAN_URL_PROPERTY = "org.gradle.android.test.scan-url"
 
     static final String DEFAULT_GRADLE_VERSION = "4.4-rc-1"
     static final String DEFAULT_ANDROID_VERSION = "3.1.0-alpha04"
@@ -28,6 +29,7 @@ class RelocationTest extends Specification {
     File cacheDir
     String androidPluginVersion
     String androidCacheFixVersion
+    String scanUrl
 
     def setup() {
         cacheDir = temporaryFolder.newFolder()
@@ -41,6 +43,8 @@ class RelocationTest extends Specification {
         if (!androidCacheFixVersion) {
             androidCacheFixVersion = DEFAULT_ANDROID_CACHE_FIX_VERSION
         }
+
+        scanUrl = System.getProperty(SCAN_URL_PROPERTY)
     }
 
     @Unroll
@@ -71,6 +75,14 @@ class RelocationTest extends Specification {
             }
         """ : ""
 
+        def scanPluginConfiguration = scanUrl ? """
+            plugins.matching({ it.class.name == "com.gradle.scan.plugin.BuildScanPlugin" }).all {
+                buildScan {
+                    server = "$scanUrl"
+                }
+            }
+        """ : ""
+
         def initScript = temporaryFolder.newFile("init.gradle") << """
             rootProject { root ->
                 buildscript {
@@ -84,11 +96,7 @@ class RelocationTest extends Specification {
                     }
                 }
 
-                plugins.matching({ it.class.name == "com.gradle.scan.plugin.BuildScanPlugin" }).all {
-                    root.buildScan {
-                        server = "https://e.grdev.net"
-                    }
-                }
+                $scanPluginConfiguration
             }
 
             $applyCacheFixPluginIfNecessary
@@ -134,9 +142,10 @@ class RelocationTest extends Specification {
     }
 
     private void cleanCheckout(File dir, List<String> defaultArgs) {
+        def args = ["clean", *defaultArgs, "--no-build-cache", "--no-scan"]
         createGradleRunner()
             .withProjectDir(dir)
-            .withArguments("clean", *defaultArgs, "--no-build-cache")
+            .withArguments(args)
             .build()
         new File(dir, ".gradle").deleteDir()
     }

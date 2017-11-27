@@ -55,6 +55,7 @@ test {
     systemProperty "org.gradle.android.test.gradle-installation", System.getProperty("org.gradle.android.test.gradle-installation")
     systemProperty "org.gradle.android.test.android-version", System.getProperty("org.gradle.android.test.android-version")
     systemProperty "org.gradle.android.test.android-cache-fix-version", System.getProperty("org.gradle.android.test.android-cache-fix-version")
+    systemProperty "org.gradle.android.test.scan-url", System.getProperty("org.gradle.android.test.scan-url")
 
     inputs.dir originalDir withPropertyName "original.dir"
     inputs.dir relocatedDir withPropertyName "relocated.dir"
