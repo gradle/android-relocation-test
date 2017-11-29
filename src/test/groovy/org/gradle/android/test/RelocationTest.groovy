@@ -23,7 +23,7 @@ class RelocationTest extends Specification {
 
     static final String DEFAULT_GRADLE_VERSION = "4.4-rc-3"
     static final String DEFAULT_ANDROID_VERSION = "3.1.0-alpha04"
-    static final String DEFAULT_ANDROID_CACHE_FIX_VERSION = "0.1.11"
+    static final String DEFAULT_ANDROID_CACHE_FIX_VERSION = "0.2.0"
 
     @Rule TemporaryFolder temporaryFolder
     File cacheDir
@@ -158,13 +158,13 @@ class RelocationTest extends Specification {
         }
 
         boolean verify(BuildResult result) {
-            println "Expecting ${outcomes.values().count(FROM_CACHE)} tasks out of ${outcomes.size()} to be cached"
+            println "> Expecting ${outcomes.values().count(FROM_CACHE)} tasks out of ${outcomes.size()} to be cached"
 
             def outcomesWithMatchingTasks = outcomes.findAll { result.task(it.key) }
             def hasMatchingTasks = outcomesWithMatchingTasks.size() == outcomes.size() && outcomesWithMatchingTasks.size() == result.tasks.size()
             if (!hasMatchingTasks) {
-                println "> Tasks missing:    " + (outcomes.keySet() - outcomesWithMatchingTasks.keySet())
-                println "> Tasks in surplus: " + (result.tasks*.path - outcomesWithMatchingTasks.keySet())
+                println "> Tasks missing:    " + (outcomes.findAll { !outcomesWithMatchingTasks.keySet().contains(it.key) })
+                println "> Tasks in surplus: " + (result.tasks.findAll { !outcomesWithMatchingTasks.keySet().contains(it.path) })
             }
 
             boolean allOutcomesMatched = true
