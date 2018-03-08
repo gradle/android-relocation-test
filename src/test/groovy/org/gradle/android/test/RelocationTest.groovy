@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableMap
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
+import org.gradle.util.VersionNumber
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 import spock.lang.Specification
@@ -20,7 +21,7 @@ class RelocationTest extends Specification {
     static final String SCAN_URL_PROPERTY = "org.gradle.android.test.scan-url"
 
     static final String DEFAULT_GRADLE_VERSION = "4.6"
-    static final String DEFAULT_ANDROID_VERSION = "3.1.0-rc01"
+    static final String DEFAULT_ANDROID_VERSION = "3.2.0-alpha05"
 
     @Rule TemporaryFolder temporaryFolder
     File cacheDir
@@ -61,6 +62,7 @@ class RelocationTest extends Specification {
             rootProject { root ->
                 buildscript {
                     repositories {
+                        mavenLocal()
                         maven {
                             url "https://plugins.gradle.org/m2/"
                         }
@@ -86,6 +88,7 @@ class RelocationTest extends Specification {
             "--build-cache",
             "--scan",
             "--init-script", initScript.absolutePath,
+            "-Dorg.gradle.caching.debug=true"
         ]
 
         cleanCheckout(originalDir, defaultArgs)
@@ -154,10 +157,11 @@ class RelocationTest extends Specification {
 
     def expectedResults() {
         def builder = ImmutableMap.<String, TaskOutcome>builder()
+        def android32x = VersionNumber.parse(androidPluginVersion) >= VersionNumber.parse("3.2.0-alpha01")
         builder.put(':common:assembleDebug', SUCCESS)
         builder.put(':common:bundleDebug', SUCCESS)
         builder.put(':common:checkDebugManifest', SUCCESS)
-        builder.put(':common:compileDebugAidl', FROM_CACHE)
+        builder.put(':common:compileDebugAidl', android32x ? NO_SOURCE : FROM_CACHE)
         builder.put(':common:compileDebugJavaWithJavac', FROM_CACHE)
         builder.put(':common:compileDebugNdk', NO_SOURCE)
         builder.put(':common:compileDebugRenderscript', FROM_CACHE)
@@ -192,7 +196,7 @@ class RelocationTest extends Specification {
         builder.put(':dasherdancer:assembleDebug', SUCCESS)
         builder.put(':dasherdancer:bundleDebug', SUCCESS)
         builder.put(':dasherdancer:checkDebugManifest', SUCCESS)
-        builder.put(':dasherdancer:compileDebugAidl', FROM_CACHE)
+        builder.put(':dasherdancer:compileDebugAidl', android32x ? NO_SOURCE : FROM_CACHE)
         builder.put(':dasherdancer:compileDebugJavaWithJavac', FROM_CACHE)
         builder.put(':dasherdancer:compileDebugNdk', NO_SOURCE)
         builder.put(':dasherdancer:compileDebugRenderscript', FROM_CACHE)
@@ -227,7 +231,7 @@ class RelocationTest extends Specification {
         builder.put(':doodles:assembleDebug', SUCCESS)
         builder.put(':doodles:bundleDebug', SUCCESS)
         builder.put(':doodles:checkDebugManifest', SUCCESS)
-        builder.put(':doodles:compileDebugAidl', FROM_CACHE)
+        builder.put(':doodles:compileDebugAidl', android32x ? NO_SOURCE : FROM_CACHE)
         builder.put(':doodles:compileDebugJavaWithJavac', FROM_CACHE)
         builder.put(':doodles:compileDebugNdk', NO_SOURCE)
         builder.put(':doodles:compileDebugRenderscript', FROM_CACHE)
@@ -262,7 +266,7 @@ class RelocationTest extends Specification {
         builder.put(':presentquest:assembleDebug', SUCCESS)
         builder.put(':presentquest:bundleDebug', SUCCESS)
         builder.put(':presentquest:checkDebugManifest', SUCCESS)
-        builder.put(':presentquest:compileDebugAidl', FROM_CACHE)
+        builder.put(':presentquest:compileDebugAidl', android32x ? NO_SOURCE : FROM_CACHE)
         builder.put(':presentquest:compileDebugJavaWithJavac', FROM_CACHE)
         builder.put(':presentquest:compileDebugNdk', NO_SOURCE)
         builder.put(':presentquest:compileDebugRenderscript', FROM_CACHE)
@@ -297,7 +301,7 @@ class RelocationTest extends Specification {
         builder.put(':rocketsleigh:assembleDebug', SUCCESS)
         builder.put(':rocketsleigh:bundleDebug', SUCCESS)
         builder.put(':rocketsleigh:checkDebugManifest', SUCCESS)
-        builder.put(':rocketsleigh:compileDebugAidl', FROM_CACHE)
+        builder.put(':rocketsleigh:compileDebugAidl', android32x ? NO_SOURCE : FROM_CACHE)
         builder.put(':rocketsleigh:compileDebugJavaWithJavac', FROM_CACHE)
         builder.put(':rocketsleigh:compileDebugNdk', NO_SOURCE)
         builder.put(':rocketsleigh:compileDebugRenderscript', FROM_CACHE)
@@ -334,13 +338,13 @@ class RelocationTest extends Specification {
         builder.put(':santa-tracker:assembleProductionDebug', SUCCESS)
         builder.put(':santa-tracker:checkDevelopmentDebugManifest', SUCCESS)
         builder.put(':santa-tracker:checkProductionDebugManifest', SUCCESS)
-        builder.put(':santa-tracker:compileDevelopmentDebugAidl', FROM_CACHE)
+        builder.put(':santa-tracker:compileDevelopmentDebugAidl', android32x ? NO_SOURCE : FROM_CACHE)
         builder.put(':santa-tracker:compileDevelopmentDebugJavaWithJavac', FROM_CACHE)
         builder.put(':santa-tracker:compileDevelopmentDebugNdk', NO_SOURCE)
         builder.put(':santa-tracker:compileDevelopmentDebugRenderscript', FROM_CACHE)
         builder.put(':santa-tracker:compileDevelopmentDebugShaders', FROM_CACHE)
         builder.put(':santa-tracker:compileDevelopmentDebugSources', UP_TO_DATE)
-        builder.put(':santa-tracker:compileProductionDebugAidl', FROM_CACHE)
+        builder.put(':santa-tracker:compileProductionDebugAidl', android32x ? NO_SOURCE : FROM_CACHE)
         builder.put(':santa-tracker:compileProductionDebugJavaWithJavac', FROM_CACHE)
         builder.put(':santa-tracker:compileProductionDebugNdk', NO_SOURCE)
         builder.put(':santa-tracker:compileProductionDebugRenderscript', FROM_CACHE)
@@ -401,7 +405,7 @@ class RelocationTest extends Specification {
         builder.put(':snowdown:assembleDebug', SUCCESS)
         builder.put(':snowdown:bundleDebug', SUCCESS)
         builder.put(':snowdown:checkDebugManifest', SUCCESS)
-        builder.put(':snowdown:compileDebugAidl', FROM_CACHE)
+        builder.put(':snowdown:compileDebugAidl', android32x ? NO_SOURCE : FROM_CACHE)
         builder.put(':snowdown:compileDebugJavaWithJavac', FROM_CACHE)
         builder.put(':snowdown:compileDebugNdk', NO_SOURCE)
         builder.put(':snowdown:compileDebugRenderscript', FROM_CACHE)
@@ -436,7 +440,7 @@ class RelocationTest extends Specification {
         builder.put(':village:assembleDebug', SUCCESS)
         builder.put(':village:bundleDebug', SUCCESS)
         builder.put(':village:checkDebugManifest', SUCCESS)
-        builder.put(':village:compileDebugAidl', FROM_CACHE)
+        builder.put(':village:compileDebugAidl', android32x ? NO_SOURCE : FROM_CACHE)
         builder.put(':village:compileDebugJavaWithJavac', FROM_CACHE)
         builder.put(':village:compileDebugNdk', NO_SOURCE)
         builder.put(':village:compileDebugRenderscript', FROM_CACHE)
@@ -470,7 +474,7 @@ class RelocationTest extends Specification {
         builder.put(':village:transformResourcesWithMergeJavaResForDebug', SUCCESS)
         builder.put(':wearable:assembleDebug', SUCCESS)
         builder.put(':wearable:checkDebugManifest', SUCCESS)
-        builder.put(':wearable:compileDebugAidl', FROM_CACHE)
+        builder.put(':wearable:compileDebugAidl', android32x ? NO_SOURCE : FROM_CACHE)
         builder.put(':wearable:compileDebugJavaWithJavac', FROM_CACHE)
         builder.put(':wearable:compileDebugNdk', NO_SOURCE)
         builder.put(':wearable:compileDebugRenderscript', FROM_CACHE)
