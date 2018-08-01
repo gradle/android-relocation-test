@@ -18,7 +18,7 @@ class RelocationTest extends Specification {
     static final String GRADLE_INSTALLATION_PROPERTY = "org.gradle.android.test.gradle-installation"
     static final String ANDROID_VERSION_PROPERTY = "org.gradle.android.test.android-version"
     static final String SCAN_URL_PROPERTY = "org.gradle.android.test.scan-url"
-    static final String MIRRORS_INITSCRIPT_PROPERTY = "org.gradle.smoketests.mirror.init.script"
+    static final String SMOKETEST_INITSCRIPT_PROPERTY = "org.gradle.smoketests.init.script"
     static final String PLUGIN_MIRROR_PROPERTY = "org.gradle.internal.plugins.portal.url.override"
 
     static final String DEFAULT_GRADLE_VERSION = "4.8.1"
@@ -28,7 +28,7 @@ class RelocationTest extends Specification {
     File cacheDir
     String androidPluginVersion
     String scanUrl
-    String mirrorsInitScript
+    String smokeTestInitScript
     String pluginMirror
 
     def setup() {
@@ -42,7 +42,7 @@ class RelocationTest extends Specification {
         scanUrl = System.getProperty(SCAN_URL_PROPERTY)
 
         pluginMirror = System.getProperty(PLUGIN_MIRROR_PROPERTY)
-        mirrorsInitScript = System.getProperty(MIRRORS_INITSCRIPT_PROPERTY)
+        smokeTestInitScript = System.getProperty(SMOKETEST_INITSCRIPT_PROPERTY)
     }
 
     def "santa-tracker can be built relocatably"() {
@@ -96,8 +96,8 @@ class RelocationTest extends Specification {
             "--stacktrace",
         ]
 
-        if (mirrorsInitScript) {
-            defaultArgs += ['--init-script', mirrorsInitScript]
+        if (smokeTestInitScript) {
+            defaultArgs += ['--init-script', smokeTestInitScript]
         }
 
         if (pluginMirror) {

@@ -55,7 +55,7 @@ test {
     systemProperty "org.gradle.android.test.gradle-installation", System.getProperty("org.gradle.android.test.gradle-installation")
     systemProperty "org.gradle.android.test.android-version", System.getProperty("org.gradle.android.test.android-version")
     systemProperty "org.gradle.android.test.scan-url", System.getProperty("org.gradle.android.test.scan-url")
-    systemProperty "org.gradle.smoketests.mirror.init.script", System.getProperty("org.gradle.smoketests.mirror.init.script")
+    systemProperty "org.gradle.smoketests.init.script", System.getProperty("org.gradle.smoketests.init.script")
 
     def pluginPortalUrl = System.getProperty('org.gradle.internal.plugins.portal.url.override')
     if (pluginPortalUrl) {
