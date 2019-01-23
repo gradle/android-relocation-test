@@ -5,10 +5,10 @@ repositories {
 }
 
 dependencies {
-    testCompile "com.google.guava:guava:23.5-jre"
-    testCompile gradleTestKit()
-    testCompile "junit:junit:4.12"
-    testCompile "org.spockframework:spock-core:1.1-groovy-2.4@jar"
+    testImplementation "com.google.guava:guava:23.5-jre"
+    testImplementation gradleTestKit()
+    testImplementation "junit:junit:4.12"
+    testImplementation "org.spockframework:spock-core:1.1-groovy-2.4@jar"
 }
 
 def androidHome = file(System.getenv("ANDROID_HOME") ?: "${System.getProperty("user.home")}/Library/Android/sdk")
