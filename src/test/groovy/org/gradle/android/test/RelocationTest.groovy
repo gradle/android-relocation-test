@@ -21,7 +21,7 @@ class RelocationTest extends Specification {
     static final String SMOKETEST_INITSCRIPT_PROPERTY = "org.gradle.smoketests.init.script"
     static final String PLUGIN_MIRROR_PROPERTY = "org.gradle.internal.plugins.portal.url.override"
 
-    static final String DEFAULT_GRADLE_VERSION = "5.1"
+    static final String DEFAULT_GRADLE_VERSION = "5.1.1"
     static final String DEFAULT_ANDROID_VERSION = "3.3.0"
 
     @Rule TemporaryFolder temporaryFolder
