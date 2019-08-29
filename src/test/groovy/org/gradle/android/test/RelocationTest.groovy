@@ -48,6 +48,8 @@ class RelocationTest extends Specification {
     def "santa-tracker can be built relocatably"() {
         def tasksToRun = ["assembleDebug"]
 
+        println "> Using ${System.getProperty("java.vendor")} ${System.getProperty("java.version")}"
+        println "> Running on Java VM ${System.getProperty("java.vm.vendor")} ${System.getProperty("java.vm.name")} ${System.getProperty("java.vm.version")}"
         println "> Using Android plugin ${androidPluginVersion}"
         println "> Cache directory: $cacheDir (files: ${cacheDir.listFiles().length})"
 
