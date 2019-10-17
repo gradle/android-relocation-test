@@ -25,9 +25,22 @@ task processFileResources(type: Copy) {
     ])
 }
 
-task cleanCheckout(type: Exec) {
-    workingDir = checkoutDir
-    commandLine = ["git", "clean", "-fdx"]
+task cleanCheckout {
+    doFirst {
+        println "Building Santa Tracker from commmit:"
+        exec {
+            workingDir = checkoutDir
+            commandLine = ["git", "clean", "-fdx"]
+        }
+        exec {
+            workingDir = checkoutDir
+            commandLine = ["git", "rev-parse", "HEAD"]
+        }
+        exec {
+            workingDir = checkoutDir
+            commandLine = ["git", "status", "--branch", "--untracked-files"]
+        }
+    }
 }
 
 task copyOriginal(type: Copy) {
